@@ -31,10 +31,6 @@ app.use(bodyParser.json());
 const server = require("http").createServer(app);
 server.listen(PORT);
 
-const date = new Date();
-const formattedDate = `${date.getFullYear()}-${(date.getMonth() + 1).toString().padStart(2, '0')}-${date.getDate().toString().padStart(2, '0')}`;
-const formattedDateTime = `${date.getFullYear()}-${(date.getMonth() + 1).toString().padStart(2, '0')}-${date.getDate().toString().padStart(2, '0')} ${date.getHours().toString().padStart(2, '0')}:${date.getMinutes().toString().padStart(2, '0')}:${date.getSeconds().toString().padStart(2, '0')}`;
-
 app.get("/", async (req, res) => {
     res.status(500).send("Error Internal Server");
 });
@@ -54,7 +50,9 @@ app.post("/userManagement/", async (req, res) => {
     //     dateIn: formattedDateTime,
     //     updateId: '2368742367823468'
     // }])
-    res.status(200).json(today);
+    setTimeout(() => {
+        res.status(200).json(today);
+    }, 2000);
 });
 
 app.use("/lambda", lambdaRoutes);
