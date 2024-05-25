@@ -1,8 +1,11 @@
 const router = require("express").Router();
+const axios = require('axios');
 const users = require("../model/user");
 const listUpdateId = require("../model/listUpdateId");
 const logUpdateId = require("../model/logUpdateId");
 const requestDay = require("../model/requestPerDay");
+const VPS = require("../model/VPS");
+const queueVPS = require("../model/queueVPS");
 const dayjs = require('dayjs');
 const utc = require('dayjs/plugin/utc');
 const timezone = require('dayjs/plugin/timezone');
@@ -21,9 +24,9 @@ router.post("/check", async (req, res) => {
     // body: updateId, userId
     const body = req.body;
 
-    if(!body.updateId || !body.userId){
+    if(body.updateId == undefined || body.userId == undefined || body.url == undefined){
         return res.status(403).json({
-            message: "updateId or userId not found!"
+            message: "Minus Body Request."
         });
     }
     
@@ -69,9 +72,73 @@ router.post("/check", async (req, res) => {
         }
     }
 
-    return res.status(200).json({
-        message: "The user has met the requirements"
-    });
+    //Check VPS
+    const vpsList = await VPS.findOne({ isRunning: false })
+
+    if (vpsList?.isRunning == false) {
+        let response = {};
+        let statusCode = 200; // Default status code
+        let responseData = {};
+    
+        try {
+            response = await axios.post(vpsList.ip, {
+                'id': body.updateId,
+                'url': body.url
+            });
+            responseData = {
+                response: response.data,
+                ip: vpsList.ip
+            };
+        } catch (error) {
+            statusCode = 500;
+            responseData = {
+                message: 'Error calling external API',
+                error: error.message,
+                ip: vpsList.ip
+            };
+        }
+    
+        return res.status(statusCode).json(responseData);
+    }else{
+        try {
+            // Ambil semua antrian dari database
+            const queues = await queueVPS.find()
+        
+            // Jika tidak ada antrian, gunakan IP dari permintaan
+            let minIp;
+            if (queues.length === 0) {
+              minIp = req.body.ip;
+            } else {
+              // Hitung jumlah antrian untuk setiap IP
+              const ipCounts = queues.reduce((acc, queue) => {
+                acc[queue.ip] = (acc[queue.ip] || 0) + 1;
+                return acc;
+              }, {});
+        
+              // Cari IP dengan jumlah antrian paling sedikit
+              minIp = null;
+              let minCount = Infinity;
+              for (const [ip, count] of Object.entries(ipCounts)) {
+                if (count < minCount) {
+                  minIp = ip;
+                  minCount = count;
+                }
+              }
+            }
+        
+            // Buat antrian baru dengan IP yang ditemukan
+            const newQueue = await queueVPS.insertMany({
+              ip: minIp,
+              userId: req.body.userId,
+              updateId: req.body.updateId,
+              dateIn: today.format()
+            });
+        
+            return res.status(201).send({newQueue, queues});
+        } catch (error) {
+            return res.status(500).send({ error: error.message });
+        }
+    }
 });
 
 router.post("/requestPerDay", async (req, res) => {

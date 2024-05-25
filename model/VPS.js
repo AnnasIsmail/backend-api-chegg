@@ -9,6 +9,12 @@ const VPS = mongoose.model("VPS", {
   },
   isActive: {
     type: Boolean,
+  },
+  dateIn: {
+    type: String,
+  },
+  dateUp: {
+    type: String,
   }
 });
 

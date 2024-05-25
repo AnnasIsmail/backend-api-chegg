@@ -12,6 +12,7 @@ const users = require("./model/user");
 const listUpdateId = require("./model/listUpdateId");
 const logUpdateId = require("./model/logUpdateId");
 const requestDay = require("./model/requestPerDay");
+const queueVPS = require("./model/queueVPS");
 
 const dayjs = require('dayjs');
 const utc = require('dayjs/plugin/utc');
@@ -38,21 +39,13 @@ app.get("/", async (req, res) => {
 
 app.post("/userManagement/", async (req, res) => {
     const today = dayjs().tz().format();
-    // const query = users.insertMany([{
-    //     userId: '1',
-    //     code: 'asd123',
-    //     subscription: '1 Week',
-    //     price: 20000,
-    //     startDate: '2024-05-11',
-    //     endDate: '2024-05-18',
-    //     maxRequestPerDay: 20,
-    //     role: 'Basic',
-    //     dateIn: formattedDateTime,
-    //     updateId: '2368742367823468'
-    // }])
-    setTimeout(() => {
-        res.status(200).json(today);
-    }, 2000);
+    const query = await queueVPS.insertMany([{
+        ip: 'test1',
+        userId: "1231",
+        updateId: "123123123",
+        dateIn: today
+    }])
+    res.status(200).json(query);
 });
 
 app.use("/lambda", lambdaRoutes);

@@ -1,6 +1,7 @@
 const router = require("express").Router();
 const users = require("../model/user");
 const subscriptions = require("../model/subscription");
+const VPS = require("../model/VPS");
 const dayjs = require('dayjs');
 const utc = require('dayjs/plugin/utc');
 const timezone = require('dayjs/plugin/timezone');
@@ -89,6 +90,30 @@ router.post("/addSubscription", async (req, res) => {
         name: body.name,
         duration: body.duration,
         price: body.price,
+        dateIn: today.format(),
+        dateUp: undefined
+    }]);
+    return res.status(200).json(subscriptionsList);
+});
+
+router.post("/addVPS", async (req, res) => {
+    const today = dayjs().tz();
+
+    // body: ip, isRunning, isActive
+    const body = req.body;
+    if(body.ip == undefined || 
+        body.isRunning == undefined || 
+        body.isActive == undefined 
+    ){
+        return res.status(403).json({
+            message: "Please Fill the Body"
+        });
+    }
+
+    const subscriptionsList = await VPS.insertMany([{
+        ip: body.ip,
+        isRunning: body.isRunning,
+        isActive: body.isActive,
         dateIn: today.format(),
         dateUp: undefined
     }]);
