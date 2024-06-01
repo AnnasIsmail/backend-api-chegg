@@ -7,6 +7,7 @@ var bodyParser = require("body-parser");
 require("./connectDB");
 const lambdaRoutes = require("./routes/lambda");
 const FERoutes = require("./routes/FE");
+const VPSRoutes = require("./routes/VPS");
 
 const users = require("./model/user");
 const listUpdateId = require("./model/listUpdateId");
@@ -50,3 +51,4 @@ app.post("/userManagement/", async (req, res) => {
 
 app.use("/lambda", lambdaRoutes);
 app.use("/FE", FERoutes);
+app.use("/VPS", VPSRoutes);

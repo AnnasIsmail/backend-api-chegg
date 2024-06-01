@@ -21,10 +21,10 @@ router.post("/check", async (req, res) => {
     const today = dayjs().tz();
     const formattedDate = today.format('YYYY-MM-DD');
 
-    // body: updateId, userId
+    // body: updateId, userId, url, chatId
     const body = req.body;
 
-    if(body.updateId == undefined || body.userId == undefined || body.url == undefined){
+    if(body.updateId == undefined || body.userId == undefined || body.url == undefined || body.chatId){
         return res.status(403).json({
             message: "Minus Body Request."
         });
@@ -52,13 +52,13 @@ router.post("/check", async (req, res) => {
     if(user?.userId !== undefined){
         if (!today.isBetween(user.startDate, user.endDate)) {
             return res.status(403).json({
-                message: "User Has Expired",
+                message: "Langganan anda sudah habis.",
                 user
             });
         }
     }else{
         return res.status(403).json({
-            message: "User not found!"
+            message: "Anda belum terdaftar sebagai pelanggan."
         });
     }
 
@@ -67,7 +67,7 @@ router.post("/check", async (req, res) => {
     if(LatestRequest?.userId){
         if(LatestRequest.requestOrderDay == LatestRequest.maxRequestPerDay || LatestRequest.requestOrderDay > LatestRequest.maxRequestPerDay){
             return res.status(403).json({
-                message: "Your request has reached the maximum" 
+                message: "Request kamu sudah mencapai maksimum." 
             });
         }
     }
@@ -83,21 +83,27 @@ router.post("/check", async (req, res) => {
         try {
             response = await axios.post(vpsList.ip, {
                 'id': body.updateId,
-                'url': body.url
+                'url': body.url,
+                'chat_id': body.chatId,
+                'userId': body.userId
             });
             responseData = {
                 response: response.data,
-                ip: vpsList.ip
+                ip: vpsList.ip,
+                message: 'Permintaan anda sedang kami proses'
             };
         } catch (error) {
             statusCode = 500;
             responseData = {
-                message: 'Error calling external API',
+                message: 'Server Kami Sedang Error!',
                 error: error.message,
                 ip: vpsList.ip
             };
         }
-    
+        await VPS.updateOne(
+        {ip: vpsList.ip},
+        {isRunning: true, dateUp: today.format()});
+
         return res.status(statusCode).json(responseData);
     }else{
         try {
@@ -131,12 +137,14 @@ router.post("/check", async (req, res) => {
               ip: minIp,
               userId: req.body.userId,
               updateId: req.body.updateId,
+              chatId: body.chatId,
+              url: body.url,
               dateIn: today.format()
             });
         
-            return res.status(201).send({newQueue, queues});
+            return res.status(201).send({newQueue, queues, message: 'Permintaan anda sedang kami proses'});
         } catch (error) {
-            return res.status(500).send({ error: error.message });
+            return res.status(500).send({ error: error.message, message: 'Server Kami Sedang Error!' });
         }
     }
 });

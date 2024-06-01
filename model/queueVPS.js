@@ -10,6 +10,12 @@ const queueVPS = mongoose.model("queueVPS", {
   updateId: {
     type: String,
   },
+  chatId: {
+    type: String,
+  },
+  url: {
+    type: String,
+  },
   dateIn: {
     type: String,
   },
