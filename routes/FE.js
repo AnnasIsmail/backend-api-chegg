@@ -120,4 +120,11 @@ router.post("/addVPS", async (req, res) => {
     return res.status(200).json(subscriptionsList);
 });
 
+router.post("/list-user", async (req, res) => {
+    
+    const users = await users.find({});
+
+    return res.status(200).json({users});
+});
+
 module.exports = router;
