@@ -3,6 +3,7 @@ const cors = require("cors");
 const app = express();
 const PORT = 5000;
 var bodyParser = require("body-parser");
+require('dotenv').config();
 
 require("./connectDB");
 const lambdaRoutes = require("./routes/lambda");
