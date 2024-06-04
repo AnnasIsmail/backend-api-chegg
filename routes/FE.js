@@ -120,11 +120,29 @@ router.post("/addVPS", async (req, res) => {
     return res.status(200).json(subscriptionsList);
 });
 
-router.post("/list-user", async (req, res) => {
-    
-    const users = await users.find({});
+router.post("/listUser", async (req, res) => {
+    const today = dayjs().tz();
+    const formattedDate = today.format('YYYY-MM-DD');
+    let user = await users.find({});
+    let activeUser = 0;
+    let notActiveUser = 0;
+    let notRegisteredYetUser = 0;
 
-    return res.status(200).json({users});
+    user = user.map(x => {
+        if(x.userId === undefined && x.firstName === undefined && x.lastName === undefined){
+            notRegisteredYetUser += 1;
+            x.status = "Not Registered Yet";
+        }else if(today.isBetween(user.startDate, user.endDate)){
+            activeUser += 1;
+            x.status = "Active";
+        }else if(!today.isBetween(user.startDate, user.endDate)){
+            notActiveUser += 1;
+            x.status = "Not Active";
+        }
+        return x;
+    })
+
+    return res.status(200).json({user, notRegisteredYetUser, activeUser, notActiveUser});
 });
 
 module.exports = router;

@@ -43,6 +43,9 @@ const user = mongoose.model("user", {
   dateUp: {
     type: String,
   },
+  status: {
+    type: String,
+  }
 });
 
 module.exports = user;
