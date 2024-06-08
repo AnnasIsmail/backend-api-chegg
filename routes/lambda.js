@@ -60,7 +60,7 @@ router.post("/check", async (req, res) => {
   const query = users.where({ userId: body.userId });
   const user = await query.findOne();
   if (user?.userId !== undefined) {
-    if (today.isBetween(dayjs(user.startDate), dayjs(user.endDate))) {
+    if (!today.isBetween(dayjs(user.startDate), dayjs(user.endDate))) {
       return res.status(403).json({
         message: "Langganan anda sudah kadaluarsa.",
         user,
@@ -90,7 +90,7 @@ router.post("/check", async (req, res) => {
 
   //Check VPS
   const vpsList = await VPS.findOne({ isRunning: false });
-
+  console.log("masuk");
   if (vpsList?.isRunning == false) {
     let response = {};
     let statusCode = 200; // Default status code
@@ -157,7 +157,14 @@ router.post("/check", async (req, res) => {
           }
         }
       }
-
+console.log({
+  ip: minIp,
+  userId: req.body.userId,
+  updateId: req.body.updateId,
+  chatId: body.chatId,
+  url: body.url,
+  dateIn: today.format(),
+});
       // Buat antrian baru dengan IP yang ditemukan
       const newQueue = await queueVPS.insertMany({
         ip: minIp,
@@ -220,8 +227,8 @@ router.post("/userRegister", async (req, res) => {
         // if user active
         if (today.isBetween(userIdExist.startDate, userIdExist.endDate)) {
           const newEndDate = dayjs(userIdExist.endDate)
-            .add(user.duration, "day").set('hour', today.hour()).set('minute', today.minute()).format('dddd D MMMM YYYY HH:mm:ss');
-          const newStartDate = dayjs(userIdExist.startDate).set('hour', today.hour()).set('minute', today.minute()).format('dddd D MMMM YYYY HH:mm:ss');
+            .add(user.duration, "day").set('hour', today.hour()).set('minute', today.minute());
+          const newStartDate = dayjs(userIdExist.startDate).set('hour', today.hour()).set('minute', today.minute());
           const maxRequestPerDay =
             user.maxRequestPerDay > userIdExist.maxRequestPerDay
               ? user.maxRequestPerDay
@@ -247,7 +254,7 @@ router.post("/userRegister", async (req, res) => {
             .json({
               updatedUser,
               removeUser,
-              message: `Terima Kasih anda sudah berlangganan, langganan anda mulai dari ${newStartDate} hingga ${newEndDate}`,
+              message: `Terima Kasih anda sudah berlangganan, langganan anda mulai dari ${newStartDate.format('dddd D MMMM YYYY HH:mm:ss')} hingga ${newEndDate.format('dddd D MMMM YYYY HH:mm:ss')}`,
             });
         } else {
           const updatedUser = await users.updateOne(
@@ -264,7 +271,7 @@ router.post("/userRegister", async (req, res) => {
             .json({
               updatedUser,
               removeUser,
-              message: `Terima Kasih anda sudah berlangganan, langganan anda mulai dari ${userIdExist.startDate} hingga ${userIdExist.endDate}`,
+              message: `Terima Kasih anda sudah berlangganan, langganan anda mulai dari ${updatedUser.startDate.format('dddd D MMMM YYYY HH:mm:ss')} hingga ${updatedUser.endDate.format('dddd D MMMM YYYY HH:mm:ss')}`,
             });
         }
       } else {
@@ -281,7 +288,7 @@ router.post("/userRegister", async (req, res) => {
           .status(200)
           .json({
             updatedUser,
-            message: `Terima Kasih anda sudah berlangganan, langganan anda mulai dari ${userIdExist.startDate} hingga ${userIdExist.endDate}`,
+            message: `Terima Kasih anda sudah berlangganan, langganan anda mulai dari ${updatedUser.startDate.format('dddd D MMMM YYYY HH:mm:ss')} hingga ${updatedUser.endDate.format('dddd D MMMM YYYY HH:mm:ss')}`,
           });
       }
     } else {

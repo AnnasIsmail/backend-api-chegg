@@ -38,7 +38,7 @@ router.post("/getQueue", async (req, res) => {
     }
     try {
         const vpsList = await queueVPS.find({ ip: body.ip })
-        const data = findEarliestDate(vpsList);
+        // const data = findEarliestDate(vpsList);
         return res.status(200).json(data);
     } catch (error) {
         console.error(error);

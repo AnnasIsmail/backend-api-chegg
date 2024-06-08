@@ -58,15 +58,12 @@ def run(item):
     input_file_path = item.id + ".html"
     webbrowser.get(chrome_path).open(url_post)
     
-    time.sleep(12)
-    pyautogui.hotkey('ctrl','down')
     wait_for_save_as_window()
     time.sleep(1)
     pyautogui.typewrite(id_update)
     pyautogui.press('enter')    
     time.sleep(2)
     pyautogui.hotkey('ctrl','w')
-
     Delete_Class_And_Nav(input_file_path)
     s3 = boto3.resource('s3')
     s3.meta.client.upload_file(
@@ -79,9 +76,9 @@ def run(item):
        	}
     )
     urlTelegram = f'https://api.telegram.org/bot6740331088:AAHkgEEOjVkKLBhvpcHhTZw-o4Iq7CM4pzc/sendMessage'
-    awsstring=f'https://chegg-bucket2.s3.ap-southeast-1.amazonaws.com/{item.update_id}.html'
+    awsstring=f'https://chegg-bucket2.s3.ap-southeast-1.amazonaws.com/{item.id}.html'
     payload_telegram_bot = {
-        'chat_id' : item.chat_id,
+        'chat_id' : item.chatId,
         'text' : awsstring
     }
     requests.post(urlTelegram,json=payload_telegram_bot)
