@@ -37,7 +37,16 @@ def getQueue(myIP):
     data = {
         'ip' : myIP
     }
-    response = requests.post('http://38.46.220.8:5000/VPS/getQueue', json=data)
+    response = requests.post('http://139.162.86.177:5000/VPS/getQueue', json=data)
+    response_data = response.json()    
+    return response_data
+
+def getQueue(userId, id):
+    data = {
+        'userId': userId, 
+        'updateId': id
+    }
+    response = requests.post('http://139.162.86.177:5000/VPS/requestPerDay', json=data)
     response_data = response.json()    
     return response_data
 
@@ -48,14 +57,16 @@ def run(item):
     id_update = item.id
     input_file_path = item.id + ".html"
     webbrowser.get(chrome_path).open(url_post)
+    
     time.sleep(12)
     pyautogui.hotkey('ctrl','down')
     wait_for_save_as_window()
     time.sleep(1)
     pyautogui.typewrite(id_update)
     pyautogui.press('enter')    
-    time.sleep(1)
+    time.sleep(2)
     pyautogui.hotkey('ctrl','w')
+
     Delete_Class_And_Nav(input_file_path)
     s3 = boto3.resource('s3')
     s3.meta.client.upload_file(
@@ -87,7 +98,7 @@ class Item(BaseModel):
 def create_item(item: Item):
     myIp = "http://38.46.220.8:8000/"
     run(item)
-    # print(getQueue(myIp))
+    print(getQueue(myIp))
     # run(item)
     # while True:
     # item = getQueue(myIP)

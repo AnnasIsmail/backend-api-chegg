@@ -7,6 +7,9 @@ const VPS = mongoose.model("VPS", {
   isRunning: {
     type: Boolean,
   },
+  userId: {
+    type: String,
+  },
   isActive: {
     type: Boolean,
   },

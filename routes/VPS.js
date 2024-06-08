@@ -77,6 +77,52 @@ router.post("/deleteQueue", async (req, res) => {
     }
 });
 
+router.post("/requestPerDay", async (req, res) => {
+    const today = dayjs().tz();
+    const formattedDate = today.format("YYYY-MM-DD");
+  
+    // body: userId, updateId
+    const body = req.body;
+  
+    if (!body.updateId || !body.userId) {
+      return res.status(403).json({
+        message: "updateId or userId not found!",
+      });
+    }
+  
+    //Check Exist RequestID
+    const LatestRequest = await requestDay.findOne({
+      userId: body.userId,
+      date: formattedDate,
+    });
+    let result = [];
+    if (LatestRequest?.userId) {
+      const requestOrderDay = LatestRequest.requestOrderDay + 1;
+      result = await requestDay.updateOne(
+        {
+          userId: body.userId,
+          date: formattedDate,
+        },
+        { requestOrderDay }
+      );
+    } else {
+      const query = users.where({ userId: body.userId });
+      const user = await query.findOne();
+      await requestDay.insertMany([
+        {
+          userId: body.userId,
+          date: formattedDate,
+          requestOrderDay: 1,
+          maxRequestPerDay: user.maxRequestPerDay,
+        },
+      ]);
+    }
+  
+    return res.status(200).json({
+      message: "Request Per Day Updated Successfully",
+    });
+  });
+
 router.post("/changeIsRunning", async (req, res) => {
     const today = dayjs().tz();
 
