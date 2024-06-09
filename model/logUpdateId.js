@@ -7,7 +7,19 @@ const logUpdateId = mongoose.model("logUpdateId", {
   userId: {
     type: String,
   },
-  dateTime: {
+  url: {
+    type: String,
+  },
+  chatId: {
+    type: String,
+  },
+  date: {
+    type: String,
+  },
+  dateIn: {
+    type: String,
+  },
+  dateUp: {
     type: String,
   }
 });

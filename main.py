@@ -6,14 +6,24 @@ import time
 import requests
 from bs4 import BeautifulSoup
 from pydantic import BaseModel
+from requests.exceptions import RequestException
+
+
+class Item(BaseModel):
+    url: str
+    id: str
+    chatId: str
+    userId: str
+
 
 def is_save_as_window_open():
-    # Check if the Save As window is open by looking for its title
     return "Save As" in pyautogui.getAllTitles()
+
 
 def wait_for_save_as_window():
     while not is_save_as_window_open():
-        time.sleep(1)  # Wait for 1 second before checking again
+        time.sleep(1)
+
 
 def Delete_Class_And_Nav(namaFIle):
     with open(namaFIle, "r", encoding='utf-8') as file:
@@ -33,37 +43,55 @@ def Delete_Class_And_Nav(namaFIle):
     with open(namaFIle, "w", encoding='utf-8') as file:
         file.write(str(soup))
 
+
 def getQueue(myIP):
     data = {
-        'ip' : myIP
+        'ip': myIP
     }
-    response = requests.post('http://139.162.86.177:5000/VPS/getQueue', json=data)
-    response_data = response.json()    
+    try:
+        response = requests.post(
+            'http://localhost:5000/VPS/getQueue', json=data, timeout=30)
+        response.raise_for_status()
+        response_data = response.json()
+    except RequestException as e:
+        print(f"Error getting queue: {e}")
+        response_data = {'message': 'Error'}
     return response_data
 
-def getQueue(userId, id):
+
+def requestPerDay(item: Item, myIp):
     data = {
-        'userId': userId, 
-        'updateId': id
+        'userId': item.userId,
+        'updateId': item.id,
+        "url": item.url,
+        "chatId": item.chatId,
+        "ip": myIp
     }
-    response = requests.post('http://139.162.86.177:5000/VPS/requestPerDay', json=data)
-    response_data = response.json()    
+    try:
+        response = requests.post(
+            'http://localhost:5000/VPS/requestPerDay', json=data, timeout=30)
+        response.raise_for_status()
+        response_data = response.json()
+    except RequestException as e:
+        print(f"Error in requestPerDay: {e}")
+        response_data = {'message': 'Error'}
     return response_data
 
-def run(item):
+
+def run(item: Item, myIp):
     pyautogui.FAILSAFE = False
     chrome_path = 'C:/Program Files/Google/Chrome/Application/chrome.exe %s'
     url_post = item.url
     id_update = item.id
     input_file_path = item.id + ".html"
     webbrowser.get(chrome_path).open(url_post)
-    
+
     wait_for_save_as_window()
     time.sleep(1)
     pyautogui.typewrite(id_update)
-    pyautogui.press('enter')    
+    pyautogui.press('enter')
     time.sleep(2)
-    pyautogui.hotkey('ctrl','w')
+    pyautogui.hotkey('ctrl', 'w')
     Delete_Class_And_Nav(input_file_path)
     s3 = boto3.resource('s3')
     s3.meta.client.upload_file(
@@ -71,37 +99,38 @@ def run(item):
         Bucket='chegg-bucket2',
         Key=input_file_path,
         ExtraArgs={
-            		'ACL': 'public-read',
-			'ContentType':'text/html'
-       	}
+            'ACL': 'public-read',
+            'ContentType': 'text/html'
+        }
     )
     urlTelegram = f'https://api.telegram.org/bot6740331088:AAHkgEEOjVkKLBhvpcHhTZw-o4Iq7CM4pzc/sendMessage'
-    awsstring=f'https://chegg-bucket2.s3.ap-southeast-1.amazonaws.com/{item.id}.html'
+    awsstring = f'https://chegg-bucket2.s3.ap-southeast-1.amazonaws.com/{
+        item.id}.html'
     payload_telegram_bot = {
-        'chat_id' : item.chatId,
-        'text' : awsstring
+        'chat_id': item.chatId,
+        'text': awsstring
     }
-    requests.post(urlTelegram,json=payload_telegram_bot)
+    requests.post(urlTelegram, json=payload_telegram_bot)
+    requestPerDay(item)
+
 
 app = FastAPI()
 
-class Item(BaseModel):
-    url: str
-    id: str
-    chatId: str
-    userId: str
 
 @app.post("/")
 def create_item(item: Item):
-    myIp = "http://38.46.220.8:8000/"
-    run(item)
-    print(getQueue(myIp))
-    # run(item)
-    # while True:
-    # item = getQueue(myIP)
-    # if item is None:
-    #     print("Tidak ada antrian yang tersedia. Berhenti menjalankan.")
-    #     break 
-    # else:
-    #     run(item)
+    myIp = "http://139.162.86.177:8000"
+    run(item, myIp)
+    while True:
+        queue_item = getQueue(myIp)
+        if queue_item['message'] == "No Queue":
+            print("Tidak ada antrian yang tersedia. Berhenti menjalankan.")
+            break
+        else:
+            run({
+                'userId': queue_item['userId'],
+                'id': item['id'],
+                "url": item['url'],
+                "chatId": item['chatId']
+            }, myIp)
     return {"statusCode": 200}

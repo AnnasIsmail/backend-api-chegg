@@ -13,6 +13,18 @@ const VPS = mongoose.model("VPS", {
   isActive: {
     type: Boolean,
   },
+  userId: {
+    type: String,
+  },
+  updateId: {
+    type: String,
+  },
+  chatId: {
+    type: String,
+  },
+  url: {
+    type: String,
+  },
   dateIn: {
     type: String,
   },
