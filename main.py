@@ -49,13 +49,12 @@ def getQueue(myIP):
         'ip': myIP
     }
     try:
-        response = requests.post(
-            'http://localhost:5000/VPS/getQueue', json=data, timeout=30)
-        response.raise_for_status()
+        response = requests.post('http://localhost:5000/VPS/getQueue', json=data, timeout=30)
         response_data = response.json()
+        response_data['message'] = "Not Error"
     except RequestException as e:
         print(f"Error getting queue: {e}")
-        response_data = {'message': 'Error'}
+        response_data = {'message': "Error"}
     return response_data
 
 
@@ -68,10 +67,8 @@ def requestPerDay(item: Item, myIp):
         "ip": myIp
     }
     try:
-        response = requests.post(
+        response_data = requests.post(
             'http://localhost:5000/VPS/requestPerDay', json=data, timeout=30)
-        response.raise_for_status()
-        response_data = response.json()
     except RequestException as e:
         print(f"Error in requestPerDay: {e}")
         response_data = {'message': 'Error'}
@@ -111,7 +108,7 @@ def run(item: Item, myIp):
         'text': awsstring
     }
     requests.post(urlTelegram, json=payload_telegram_bot)
-    requestPerDay(item)
+    requestPerDay(item, myIp)
 
 
 app = FastAPI()
@@ -123,14 +120,14 @@ def create_item(item: Item):
     run(item, myIp)
     while True:
         queue_item = getQueue(myIp)
-        if queue_item['message'] == "No Queue":
+        if queue_item['message'] == "Error" or queue_item.get('status_message') == 204:
             print("Tidak ada antrian yang tersedia. Berhenti menjalankan.")
             break
         else:
             run({
                 'userId': queue_item['userId'],
-                'id': item['id'],
-                "url": item['url'],
-                "chatId": item['chatId']
+                'id': queue_item['id'],
+                "url": queue_item['url'],
+                "chatId": queue_item['chatId']
             }, myIp)
     return {"statusCode": 200}

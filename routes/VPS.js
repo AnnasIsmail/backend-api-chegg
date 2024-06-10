@@ -120,7 +120,7 @@ router.post("/requestPerDay", async (req, res) => {
         userId: body.userId,
         date: formattedDate,
         requestOrderDay: 1,
-        maxRequestPerDay: user.maxRequestPerDay,
+        maxRequestPerDay: user?.maxRequestPerDay,
         url: body.url,
         chatId: body.chatId,
         dateUp: today,
