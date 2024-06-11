@@ -111,7 +111,7 @@ def run(item: Item, myIp):
         'text': awsstring
     }
     requests.post(urlTelegram, json=payload_telegram_bot)
-    requestPerDay(item)
+    requestPerDay(item, myIp)
 
 
 app = FastAPI()

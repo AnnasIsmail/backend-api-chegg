@@ -16,7 +16,6 @@ dayjs.extend(isBetween);
 dayjs.extend(utc);
 dayjs.extend(timezone);
 dayjs.tz.setDefault("Asia/Jakarta");
-const myIp = "http://139.162.86.177:8000";
 
 router.post("/check", async (req, res) => {
   const today = dayjs().tz();
@@ -131,7 +130,7 @@ router.post("/check", async (req, res) => {
       );
 
       axios
-        .post(vpsList.ip === myIp ? "http://localhost:8000/" : vpsList.ip, {
+        .post(vpsList.ip, {
           url: body.url,
           id: body.updateId,
           chatId: body.chatId,

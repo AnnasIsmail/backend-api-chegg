@@ -132,10 +132,10 @@ router.post("/listUser", async (req, res) => {
         if(x.userId === undefined && x.firstName === undefined && x.lastName === undefined){
             notRegisteredYetUser += 1;
             x.status = "Not Registered Yet";
-        }else if(today.isBetween(user.startDate, user.endDate)){
+        }else if(today.isBetween(dayjs(x.startDate), dayjs(x.endDate))){
             activeUser += 1;
             x.status = "Active";
-        }else if(!today.isBetween(user.startDate, user.endDate)){
+        }else if(!today.isBetween(dayjs(x.startDate), dayjs(x.endDate))){
             notActiveUser += 1;
             x.status = "Not Active";
         }
