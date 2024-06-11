@@ -143,6 +143,7 @@ router.post("/check", async (req, res) => {
         ip: vpsList.ip,
         message: "Permintaan anda sedang kami proses",
       };
+      res.status(statusCode).json(responseData);
     } catch (error) {
       statusCode = 500;
       responseData = {
@@ -150,8 +151,9 @@ router.post("/check", async (req, res) => {
         error: error.message,
         ip: vpsList.ip,
       };
+      res.status(statusCode).json(responseData);
     }
-    return res.status(statusCode).json(responseData);
+    return true;
   } else {
     try {
       // Ambil semua antrian dari database
