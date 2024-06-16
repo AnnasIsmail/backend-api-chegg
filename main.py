@@ -103,7 +103,7 @@ def run(item: Item, myIp: str):
     time.sleep(1)
     pyautogui.typewrite(id_update)
     pyautogui.press('enter')
-    time.sleep(2)
+    time.sleep(4)
     pyautogui.hotkey('ctrl', 'w')
     Delete_Class_And_Nav(input_file_path)
     s3 = boto3.resource('s3')
@@ -145,7 +145,7 @@ def create_item(item: Item):
             try:
                 run(Item(
                     userId=queue_item['userId'],
-                    id=queue_item['id'],
+                    id=queue_item['updateId'],
                     url=queue_item['url'],
                     chatId=queue_item['chatId']
                 ), myIp)

@@ -18,6 +18,7 @@ dayjs.extend(timezone);
 dayjs.tz.setDefault("Asia/Jakarta");
 
 router.post("/check", async (req, res) => {
+  const today = dayjs().tz("Asia/Jakarta");
   const formattedDate = today.format("YYYY-MM-DD");
 
   // body: updateId, userId, url, chatId
@@ -155,26 +156,24 @@ router.post("/check", async (req, res) => {
   } else {
     try {
       // Ambil semua antrian dari database
-      const queues = await queueVPS.find();
-
-      // Jika tidak ada antrian, gunakan IP dari permintaan
+      const queues = await queueVPS.find({isActive: true});
       let minIp;
       if (queues.length === 0) {
-        minIp = req.body.ip;
-      } else {
-        // Hitung jumlah antrian untuk setiap IP
-        const ipCounts = queues.reduce((acc, queue) => {
-          acc[queue.ip] = (acc[queue.ip] || 0) + 1;
-          return acc;
-        }, {});
-
-        // Cari IP dengan jumlah antrian paling sedikit
-        minIp = null;
-        let minCount = Infinity;
-        for (const [ip, count] of Object.entries(ipCounts)) {
-          if (count < minCount) {
-            minIp = ip;
-            minCount = count;
+          minIp = req.body.ip;
+        } else {
+          // Hitung jumlah antrian untuk setiap IP
+          const ipCounts = queues.reduce((acc, queue) => {
+            acc[queue.ip] = (acc[queue.ip] || 0) + 1;
+            return acc;
+          }, {});
+  
+          // Cari IP dengan jumlah antrian paling sedikit
+          minIp = null;
+          let minCount = Infinity;
+          for (const [ip, count] of Object.entries(ipCounts)) {
+            if (count < minCount) {
+              minIp = ip;
+              minCount = count;
           }
         }
       }

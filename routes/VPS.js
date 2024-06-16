@@ -56,9 +56,9 @@ router.post("/getQueue", async (req, res) => {
           dateUp: today.format(),
         }
       );
+      data["message"] = "Has Queue";
       return res.status(200).json(data);
     } else {
-      console.log("masuk");
       await VPS.updateOne(
         { ip: body.ip },
         {
