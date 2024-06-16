@@ -27,7 +27,7 @@ function findEarliestDate(data) {
 }
 
 router.post("/getQueue", async (req, res) => {
-  const today = dayjs().tz();
+  const today = dayjs().tz("Asia/Jakarta");
   const formattedDate = today.format("YYYY-MM-DD");
 
   // body: ip
@@ -46,7 +46,7 @@ router.post("/getQueue", async (req, res) => {
         _id: data._id,
       });
       await VPS.updateOne(
-        { ip: data.ip },
+        { ip: body.ip },
         {
           isRunning: false,
           userId: null,
@@ -58,6 +58,7 @@ router.post("/getQueue", async (req, res) => {
       );
       return res.status(200).json(data);
     } else {
+      console.log("masuk");
       await VPS.updateOne(
         { ip: body.ip },
         {
@@ -69,7 +70,7 @@ router.post("/getQueue", async (req, res) => {
           dateUp: today.format(),
         }
       );
-      return res.status(204).json({ message: "No Queue" });
+      return res.status(200).json({ message: "No Queue" });
     }
   } catch (error) {
     console.error(error);
@@ -80,7 +81,7 @@ router.post("/getQueue", async (req, res) => {
 });
 
 router.post("/requestPerDay", async (req, res) => {
-  const today = dayjs().tz();
+  const today = dayjs().tz("Asia/Jakarta");
   const formattedDate = today.format("YYYY-MM-DD");
 
   // body: userId, updateId, url, chatId
@@ -134,7 +135,7 @@ router.post("/requestPerDay", async (req, res) => {
 });
 
 // router.post("/deleteQueue", async (req, res) => {
-//     const today = dayjs().tz();
+//     const today = dayjs().tz("Asia/Jakarta");
 //     const formattedDate = today.format('YYYY-MM-DD');
 
 //     // body: ip, updateId, userId
@@ -163,7 +164,7 @@ router.post("/requestPerDay", async (req, res) => {
 // });
 
 // router.post("/changeIsRunning", async (req, res) => {
-//     const today = dayjs().tz();
+//     const today = dayjs().tz("Asia/Jakarta");
 
 //     // body: ip, IsRunning
 //     const body = req.body;

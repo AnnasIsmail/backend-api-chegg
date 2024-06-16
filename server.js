@@ -42,7 +42,7 @@ app.get("/", async (req, res) => {
 
 
 app.post("/userManagement/", async (req, res) => {
-    const today = dayjs().tz().format();
+    const today = dayjs().tz("Asia/Jakarta").format();
     const query = await queueVPS.insertMany([{
         ip: 'test1',
         userId: "1231",

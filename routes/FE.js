@@ -14,7 +14,7 @@ dayjs.tz.setDefault("Asia/Jakarta");
 
 
 router.post("/userRegister", async (req, res) => {
-    const today = dayjs().tz();
+    const today = dayjs().tz("Asia/Jakarta");
 
     // body: code, subscription, quantity, price, startDate, endDate, maxRequestPerDay, duration
     const body = req.body;
@@ -74,7 +74,7 @@ router.post("/getSubscription", async (req, res) => {
 });
 
 router.post("/addSubscription", async (req, res) => {
-    const today = dayjs().tz();
+    const today = dayjs().tz("Asia/Jakarta");
 
     // body: name, duration, price
     const body = req.body;
@@ -97,7 +97,7 @@ router.post("/addSubscription", async (req, res) => {
 });
 
 router.post("/addVPS", async (req, res) => {
-    const today = dayjs().tz();
+    const today = dayjs().tz("Asia/Jakarta");
 
     // body: ip, isRunning, isActive
     const body = req.body;
@@ -121,7 +121,7 @@ router.post("/addVPS", async (req, res) => {
 });
 
 router.post("/listUser", async (req, res) => {
-    const today = dayjs().tz();
+    const today = dayjs().tz("Asia/Jakarta");
     const formattedDate = today.format('YYYY-MM-DD');
     let user = await users.find({});
     let activeUser = 0;

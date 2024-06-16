@@ -18,7 +18,6 @@ dayjs.extend(timezone);
 dayjs.tz.setDefault("Asia/Jakarta");
 
 router.post("/check", async (req, res) => {
-  const today = dayjs().tz();
   const formattedDate = today.format("YYYY-MM-DD");
 
   // body: updateId, userId, url, chatId
@@ -60,8 +59,7 @@ router.post("/check", async (req, res) => {
   const query = users.where({ userId: body.userId });
   const user = await query.findOne();
   if (user?.userId !== undefined) {
-    if (!today.isBetween(dayjs(user.startDate), dayjs(user.endDate))) {
-      return res.status(403).json({
+    if (!today.isBetween(dayjs(user.startDate), dayjs(user.endDate))) {return res.status(403).json({
         message: "Langganan anda sudah kadaluarsa.",
         user,
       });
@@ -205,7 +203,10 @@ router.post("/check", async (req, res) => {
 });
 
 router.post("/userRegister", async (req, res) => {
-  const today = dayjs().tz();
+  const today = dayjs().tz("Asia/Jakarta");
+  const todayB = dayjs().tz("Asia/Bangkok");
+  console.log(today);
+  console.log(todayB);
 
   // body: userId, firstName, lastName, maxRequestPerDay
   const body = req.body;
@@ -227,6 +228,7 @@ router.post("/userRegister", async (req, res) => {
     if (user) {
       if (user.userId !== undefined) {
         return res.status(403).json({
+          today,
           message: "User was registered",
         });
       }
@@ -236,14 +238,18 @@ router.post("/userRegister", async (req, res) => {
       if (userIdExist?.userId !== undefined) {
         const removeUser = await users.deleteOne({ userId: body.userId });
         // if user active
-        if (today.isBetween(userIdExist.startDate, userIdExist.endDate)) {
+        if (today.isBetween(dayjs(userIdExist.startDate), dayjs(userIdExist.endDate))) {
           const newEndDate = dayjs(userIdExist.endDate)
             .add(user.duration, "day")
             .set("hour", today.hour())
-            .set("minute", today.minute());
+            .set("minute", today.minute()).format(
+              "dddd D MMMM YYYY HH:mm:ss"
+            );
           const newStartDate = dayjs(userIdExist.startDate)
             .set("hour", today.hour())
-            .set("minute", today.minute());
+            .set("minute", today.minute()).format(
+              "dddd D MMMM YYYY HH:mm:ss"
+            );
           const maxRequestPerDay =
             user.maxRequestPerDay > userIdExist.maxRequestPerDay
               ? user.maxRequestPerDay
@@ -267,51 +273,70 @@ router.post("/userRegister", async (req, res) => {
           const userLog = await users.findOne({ code: body.code });
           const insertUserLog = await userLogs.insertMany([userLog]);
           return res.status(200).json({
-            updatedUser,
-            removeUser,
-            message: `Terima Kasih anda sudah berlangganan, langganan anda mulai dari ${newStartDate.format(
-              "dddd D MMMM YYYY HH:mm:ss"
-            )} hingga ${newEndDate.format("dddd D MMMM YYYY HH:mm:ss")}`,
+          today,
+          updatedUser,
+            removeUser, 
+            message: `Terima Kasih anda sudah berlangganan, langganan anda mulai dari ${newStartDate} hingga ${newEndDate}`,
           });
         } else {
+          const newEndDate = dayjs(user.endDate)
+          .set("hour", today.hour())
+          .set("minute", today.minute()).format(
+            "dddd D MMMM YYYY HH:mm:ss"
+          );
+        const newStartDate = dayjs(user.startDate)
+          .set("hour", today.hour())
+          .set("minute", today.minute()).format(
+            "dddd D MMMM YYYY HH:mm:ss"
+          );
           const updatedUser = await users.updateOne(
             { code: body.code },
             {
               userId: body.userId,
               firstName: body.firstName,
               lastName: body.lastName,
+              startDate: newStartDate,
+              endDate: newEndDate,
               dateUp: today.format(),
             }
           );
           const userLog = await users.findOne({ code: body.code });
           const insertUserLog = await userLogs.insertMany([userLog]);
           return res.status(200).json({
-            updatedUser,
+          today,
+          updatedUser,
             removeUser,
-            message: `Terima Kasih anda sudah berlangganan, langganan anda mulai dari ${updatedUser.startDate.format(
-              "dddd D MMMM YYYY HH:mm:ss"
-            )} hingga ${updatedUser.endDate.format(
-              "dddd D MMMM YYYY HH:mm:ss"
-            )}`,
+            message: `Terima Kasih anda sudah berlangganan, langganan anda mulai dari ${newStartDate} hingga ${newEndDate}`,
           });
         }
       } else {
+        const newEndDate = dayjs(user.endDate)
+        .set("hour", today.hour())
+        .set("minute", today.minute()).format(
+          "dddd D MMMM YYYY HH:mm:ss"
+        );
+      const newStartDate = dayjs(user.startDate)
+        .set("hour", today.hour())
+        .set("minute", today.minute()).format(
+          "dddd D MMMM YYYY HH:mm:ss"
+        );
         const updatedUser = await users.updateOne(
           { code: body.code },
           {
             userId: body.userId,
             firstName: body.firstName,
             lastName: body.lastName,
+            startDate: newStartDate,
+            endDate: newEndDate,
             dateUp: today.format(),
           }
         );
         const userLog = await users.findOne({ code: body.code });
         const insertUserLog = await userLogs.insertMany([userLog]);
         return res.status(200).json({
+          today,
           updatedUser,
-          message: `Terima Kasih anda sudah berlangganan, langganan anda mulai dari ${updatedUser.startDate.format(
-            "dddd D MMMM YYYY HH:mm:ss"
-          )} hingga ${updatedUser.endDate.format("dddd D MMMM YYYY HH:mm:ss")}`,
+          message: `Terima Kasih anda sudah berlangganan, langganan anda mulai dari ${newStartDate} hingga ${newEndDate}`,
         });
       }
     } else {

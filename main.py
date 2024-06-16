@@ -1,4 +1,4 @@
-from fastapi import FastAPI
+from fastapi import FastAPI, HTTPException
 import webbrowser
 import pyautogui
 import boto3
@@ -8,6 +8,8 @@ from bs4 import BeautifulSoup
 from pydantic import BaseModel
 from requests.exceptions import RequestException
 
+userManagementIP = "http://umc-dev.ap-southeast-1.elasticbeanstalk.com"
+myIp = "http://139.162.86.177:8000"
 
 class Item(BaseModel):
     url: str
@@ -16,16 +18,20 @@ class Item(BaseModel):
     userId: str
 
 
-def is_save_as_window_open():
+def is_save_as_window_open() -> bool:
     return "Save As" in pyautogui.getAllTitles()
 
 
-def wait_for_save_as_window():
+def wait_for_save_as_window(timeout=120) -> bool:
+    start_time = time.time()
     while not is_save_as_window_open():
+        if time.time() - start_time > timeout:
+            return False
         time.sleep(1)
+    return True
 
 
-def Delete_Class_And_Nav(namaFIle):
+def Delete_Class_And_Nav(namaFIle: str):
     with open(namaFIle, "r", encoding='utf-8') as file:
         html_content = file.read()
 
@@ -44,21 +50,20 @@ def Delete_Class_And_Nav(namaFIle):
         file.write(str(soup))
 
 
-def getQueue(myIP):
+def getQueue() -> dict:
     data = {
-        'ip': myIP
+        'ip': myIp
     }
     try:
-        response = requests.post('http://localhost:5000/VPS/getQueue', json=data, timeout=30)
+        response = requests.post(userManagementIP + '/VPS/getQueue', json=data, timeout=30)
         response_data = response.json()
-        response_data['message'] = "Not Error"
     except RequestException as e:
         print(f"Error getting queue: {e}")
         response_data = {'message': "Error"}
     return response_data
 
 
-def requestPerDay(item: Item, myIp):
+def requestPerDay(item: Item, myIp: str) -> dict:
     data = {
         'userId': item.userId,
         'updateId': item.id,
@@ -67,15 +72,16 @@ def requestPerDay(item: Item, myIp):
         "ip": myIp
     }
     try:
-        response_data = requests.post(
-            'http://localhost:5000/VPS/requestPerDay', json=data, timeout=30)
+        response = requests.post(
+            userManagementIP + '/VPS/requestPerDay', json=data, timeout=30)
+        response_data = response.json()
     except RequestException as e:
         print(f"Error in requestPerDay: {e}")
         response_data = {'message': 'Error'}
     return response_data
 
 
-def run(item: Item, myIp):
+def run(item: Item, myIp: str):
     pyautogui.FAILSAFE = False
     chrome_path = 'C:/Program Files/Google/Chrome/Application/chrome.exe %s'
     url_post = item.url
@@ -83,7 +89,17 @@ def run(item: Item, myIp):
     input_file_path = item.id + ".html"
     webbrowser.get(chrome_path).open(url_post)
 
-    wait_for_save_as_window()
+    if not wait_for_save_as_window():
+        pyautogui.hotkey('ctrl', 'r')
+        if not wait_for_save_as_window():
+            urlTelegram = 'https://api.telegram.org/bot6740331088:AAHkgEEOjVkKLBhvpcHhTZw-o4Iq7CM4pzc/sendMessage'
+            awsstring = f'Mohon maaf server kami sedang mengalami error, mohon coba kembali beberapa saat.'
+            payload_telegram_bot = {
+                'chat_id': item.chatId,
+                'text': awsstring
+            }
+            return False
+
     time.sleep(1)
     pyautogui.typewrite(id_update)
     pyautogui.press('enter')
@@ -100,9 +116,8 @@ def run(item: Item, myIp):
             'ContentType': 'text/html'
         }
     )
-    urlTelegram = f'https://api.telegram.org/bot6740331088:AAHkgEEOjVkKLBhvpcHhTZw-o4Iq7CM4pzc/sendMessage'
-    awsstring = f'https://chegg-bucket2.s3.ap-southeast-1.amazonaws.com/{
-        item.id}.html'
+    urlTelegram = 'https://api.telegram.org/bot6740331088:AAHkgEEOjVkKLBhvpcHhTZw-o4Iq7CM4pzc/sendMessage'
+    awsstring = f'https://chegg-bucket2.s3.ap-southeast-1.amazonaws.com/{item.id}.html'
     payload_telegram_bot = {
         'chat_id': item.chatId,
         'text': awsstring
@@ -116,18 +131,25 @@ app = FastAPI()
 
 @app.post("/")
 def create_item(item: Item):
-    myIp = "http://139.162.86.177:8000"
-    run(item, myIp)
+    try:
+        run(item, myIp)
+    except HTTPException as e:
+        return {"statusCode": e.status_code, "detail": e.detail}
+    
     while True:
-        queue_item = getQueue(myIp)
-        if queue_item['message'] == "Error" or queue_item.get('status_message') == 204:
+        queue_item = getQueue()
+        if queue_item['message'] == "Error" or queue_item['message'] == "No Queue":
             print("Tidak ada antrian yang tersedia. Berhenti menjalankan.")
             break
         else:
-            run({
-                'userId': queue_item['userId'],
-                'id': queue_item['id'],
-                "url": queue_item['url'],
-                "chatId": queue_item['chatId']
-            }, myIp)
+            try:
+                run(Item(
+                    userId=queue_item['userId'],
+                    id=queue_item['id'],
+                    url=queue_item['url'],
+                    chatId=queue_item['chatId']
+                ), myIp)
+            except HTTPException as e:
+                return {"statusCode": e.status_code, "detail": e.detail}
+                
     return {"statusCode": 200}
