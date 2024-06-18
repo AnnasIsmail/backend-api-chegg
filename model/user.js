@@ -34,6 +34,12 @@ const user = mongoose.model("user", {
   maxRequestPerDay: {
     type: Number,
   },
+  phoneNumber: {
+    type: String,
+  },
+  email: {
+    type: String,
+  },
   role: {
     type: String,
   },

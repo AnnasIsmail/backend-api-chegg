@@ -2,19 +2,13 @@ const router = require("express").Router();
 const users = require("../model/user");
 const subscriptions = require("../model/subscription");
 const VPS = require("../model/VPS");
-const dayjs = require('dayjs');
-const utc = require('dayjs/plugin/utc');
-const timezone = require('dayjs/plugin/timezone');
-const isBetween = require('dayjs/plugin/isBetween');
-
-dayjs.extend(isBetween);
-dayjs.extend(utc);
-dayjs.extend(timezone);
-dayjs.tz.setDefault("Asia/Jakarta");
-
+const moment = require('moment');
+const momentTimeZone = require('moment-timezone');
+const formatDate = "DD MMMM YYYY";
+const formatDateTime = "dddd DD MMMM YYYY HH:mm:ss";
 
 router.post("/userRegister", async (req, res) => {
-    const today = dayjs().tz("Asia/Jakarta");
+    const today = momentTimeZone().tz("Asia/Jakarta");
 
     // body: code, subscription, quantity, price, startDate, endDate, maxRequestPerDay, duration
     const body = req.body;
@@ -47,7 +41,7 @@ router.post("/userRegister", async (req, res) => {
             startDate: body.startDate,
             endDate: body.endDate,
             maxRequestPerDay: body.maxRequestPerDay,
-            dateIn: today.format(),
+            dateIn: today.format(formatDateTime),
             duration: body.duration,
             // Part of Lambda
             userId: undefined,
@@ -74,7 +68,7 @@ router.post("/getSubscription", async (req, res) => {
 });
 
 router.post("/addSubscription", async (req, res) => {
-    const today = dayjs().tz("Asia/Jakarta");
+    const today = momentTimeZone().tz("Asia/Jakarta");
 
     // body: name, duration, price
     const body = req.body;
@@ -90,14 +84,14 @@ router.post("/addSubscription", async (req, res) => {
         name: body.name,
         duration: body.duration,
         price: body.price,
-        dateIn: today.format(),
+        dateIn: today.format(formatDateTime),
         dateUp: undefined
     }]);
     return res.status(200).json(subscriptionsList);
 });
 
 router.post("/addVPS", async (req, res) => {
-    const today = dayjs().tz("Asia/Jakarta");
+    const today = momentTimeZone().tz("Asia/Jakarta");
 
     // body: ip, isRunning, isActive
     const body = req.body;
@@ -114,15 +108,15 @@ router.post("/addVPS", async (req, res) => {
         ip: body.ip,
         isRunning: body.isRunning,
         isActive: body.isActive,
-        dateIn: today.format(),
+        dateIn: today.format(formatDateTime),
         dateUp: undefined
     }]);
     return res.status(200).json(subscriptionsList);
 });
 
 router.post("/listUser", async (req, res) => {
-    const today = dayjs().tz("Asia/Jakarta");
-    const formattedDate = today.format('YYYY-MM-DD');
+    const today = momentTimeZone().tz("Asia/Jakarta");
+
     let user = await users.find({});
     let activeUser = 0;
     let notActiveUser = 0;
@@ -132,10 +126,10 @@ router.post("/listUser", async (req, res) => {
         if(x.userId === undefined && x.firstName === undefined && x.lastName === undefined){
             notRegisteredYetUser += 1;
             x.status = "Not Registered Yet";
-        }else if(today.isBetween(dayjs(x.startDate), dayjs(x.endDate))){
+        }else if(today.isBetween(moment(x.startDate, formatDateTime), moment(x.endDate, formatDateTime))){
             activeUser += 1;
             x.status = "Active";
-        }else if(!today.isBetween(dayjs(x.startDate), dayjs(x.endDate))){
+        }else if(!today.isBetween(moment(x.startDate, formatDateTime), moment(x.endDate, formatDateTime))){
             notActiveUser += 1;
             x.status = "Not Active";
         }
