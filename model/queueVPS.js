@@ -13,6 +13,9 @@ const queueVPS = mongoose.model("queueVPS", {
   chatId: {
     type: String,
   },
+  message: {
+    type: String,
+  },
   url: {
     type: String,
   },

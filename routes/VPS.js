@@ -4,21 +4,16 @@ const VPS = require("../model/VPS");
 const queueVPS = require("../model/queueVPS");
 const requestDay = require("../model/requestPerDay");
 const users = require("../model/user");
-const dayjs = require("dayjs");
-const utc = require("dayjs/plugin/utc");
-const timezone = require("dayjs/plugin/timezone");
-const isBetween = require("dayjs/plugin/isBetween");
-
-dayjs.extend(isBetween);
-dayjs.extend(utc);
-dayjs.extend(timezone);
-dayjs.tz.setDefault("Asia/Jakarta");
+const moment = require('moment');
+const momentTimeZone = require('moment-timezone');
+const formatDate = "DD MMMM YYYY";
+const formatDateTime = "dddd DD MMMM YYYY HH:mm:ss";
 
 function findEarliestDate(data) {
   let earliestDateObj = data[0];
 
   data.forEach((obj) => {
-    if (dayjs(obj.dateIn).isBefore(dayjs(earliestDateObj.dateIn))) {
+    if (moment(obj.dateIn).isBefore(moment(earliestDateObj.dateIn))) {
       earliestDateObj = obj;
     }
   });
@@ -27,8 +22,7 @@ function findEarliestDate(data) {
 }
 
 router.post("/getQueue", async (req, res) => {
-  const today = dayjs().tz();
-  const formattedDate = today.format("YYYY-MM-DD");
+  const today = momentTimeZone().tz("Asia/Jakarta");
 
   // body: ip
   const body = req.body;
@@ -46,16 +40,17 @@ router.post("/getQueue", async (req, res) => {
         _id: data._id,
       });
       await VPS.updateOne(
-        { ip: data.ip },
+        { ip: body.ip },
         {
           isRunning: false,
           userId: null,
           updateId: null,
           chatId: null,
           url: null,
-          dateUp: today.format(),
+          dateUp: today.format(formatDateTime),
         }
       );
+      data["message"] = "Has Queue";
       return res.status(200).json(data);
     } else {
       await VPS.updateOne(
@@ -66,10 +61,10 @@ router.post("/getQueue", async (req, res) => {
           updateId: null,
           chatId: null,
           url: null,
-          dateUp: today.format(),
+          dateUp: today.format(formatDateTime),
         }
       );
-      return res.status(204).json({ message: "No Queue" });
+      return res.status(200).json({ message: "No Queue" });
     }
   } catch (error) {
     console.error(error);
@@ -80,8 +75,7 @@ router.post("/getQueue", async (req, res) => {
 });
 
 router.post("/requestPerDay", async (req, res) => {
-  const today = dayjs().tz();
-  const formattedDate = today.format("YYYY-MM-DD");
+  const today = momentTimeZone().tz("Asia/Jakarta");
 
   // body: userId, updateId, url, chatId
   const body = req.body;
@@ -95,7 +89,7 @@ router.post("/requestPerDay", async (req, res) => {
   //Check Exist RequestID
   const LatestRequest = await requestDay.findOne({
     userId: body.userId,
-    date: formattedDate,
+    date: today.format(formatDate),
   });
   let result = [];
   if (LatestRequest?.userId) {
@@ -103,7 +97,7 @@ router.post("/requestPerDay", async (req, res) => {
     result = await requestDay.updateOne(
       {
         userId: body.userId,
-        date: formattedDate,
+        date: today.format(formatDate),
       },
       {
         requestOrderDay,
@@ -123,7 +117,7 @@ router.post("/requestPerDay", async (req, res) => {
         maxRequestPerDay: user?.maxRequestPerDay,
         url: body.url,
         chatId: body.chatId,
-        dateUp: today,
+        dateUp: today.format(formatDate),
       },
     ]);
   }
@@ -134,7 +128,7 @@ router.post("/requestPerDay", async (req, res) => {
 });
 
 // router.post("/deleteQueue", async (req, res) => {
-//     const today = dayjs().tz();
+//     const today = dayjs().tz("Asia/Jakarta");
 //     const formattedDate = today.format('YYYY-MM-DD');
 
 //     // body: ip, updateId, userId
@@ -163,7 +157,7 @@ router.post("/requestPerDay", async (req, res) => {
 // });
 
 // router.post("/changeIsRunning", async (req, res) => {
-//     const today = dayjs().tz();
+//     const today = dayjs().tz("Asia/Jakarta");
 
 //     // body: ip, IsRunning
 //     const body = req.body;

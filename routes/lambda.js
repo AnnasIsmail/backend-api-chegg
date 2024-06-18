@@ -7,19 +7,14 @@ const logUpdateId = require("../model/logUpdateId");
 const requestDay = require("../model/requestPerDay");
 const VPS = require("../model/VPS");
 const queueVPS = require("../model/queueVPS");
-const dayjs = require("dayjs");
-const utc = require("dayjs/plugin/utc");
-const timezone = require("dayjs/plugin/timezone");
-const isBetween = require("dayjs/plugin/isBetween");
-
-dayjs.extend(isBetween);
-dayjs.extend(utc);
-dayjs.extend(timezone);
-dayjs.tz.setDefault("Asia/Jakarta");
+const queueVPSLog = require("../model/queueVPSLog");
+const moment = require('moment');
+const momentTimeZone = require('moment-timezone');
+const formatDate = "DD MMMM YYYY";
+const formatDateTime = "dddd DD MMMM YYYY HH:mm:ss";
 
 router.post("/check", async (req, res) => {
-  const today = dayjs().tz();
-  const formattedDate = today.format("YYYY-MM-DD");
+  const today = momentTimeZone().tz("Asia/Jakarta");
 
   // body: updateId, userId, url, chatId
   const body = req.body;
@@ -41,7 +36,7 @@ router.post("/check", async (req, res) => {
   });
   await logUpdateId.insertMany({
     updateId: body.updateId,
-    dateTime: today.format(),
+    dateTime: today.format(formatDateTime),
   });
   if (isExistUpdateId) {
     return res.status(403).json({
@@ -51,7 +46,7 @@ router.post("/check", async (req, res) => {
   } else {
     await listUpdateId.insertMany({
       updateId: body.updateId,
-      dateTime: today.format(),
+      dateTime: today.format(formatDateTime),
       userId: body.userId,
     });
   }
@@ -60,7 +55,9 @@ router.post("/check", async (req, res) => {
   const query = users.where({ userId: body.userId });
   const user = await query.findOne();
   if (user?.userId !== undefined) {
-    if (!today.isBetween(dayjs(user.startDate), dayjs(user.endDate))) {
+    const startDate = moment(user.startDate, "dddd DD MMMM YYYY HH:mm:ss");
+    const endDate = moment(user.endDate, "dddd DD MMMM YYYY HH:mm:ss");
+    if (today.isBetween(startDate, endDate, null, '()')) {
       return res.status(403).json({
         message: "Langganan anda sudah kadaluarsa.",
         user,
@@ -75,7 +72,7 @@ router.post("/check", async (req, res) => {
   // Check Request Per Day
   const LatestRequest = await requestDay.findOne({
     userId: body.userId,
-    date: formattedDate,
+    date: today.format(formatDate),
   });
   if (LatestRequest?.userId) {
     if (
@@ -111,7 +108,7 @@ router.post("/check", async (req, res) => {
 
   //Check VPS
   const vpsList = await VPS.findOne({ isRunning: false });
-  if (vpsList?.isRunning == false) {
+  if (vpsList) {
     let response = {};
     let statusCode = 200; // Default status code
     let responseData = {};
@@ -125,7 +122,7 @@ router.post("/check", async (req, res) => {
           updateId: body.updateId,
           chatId: body.chatId,
           url: body.url,
-          dateUp: today.format(),
+          dateUp: today.format(formatDateTime),
         }
       );
 
@@ -156,56 +153,59 @@ router.post("/check", async (req, res) => {
     return true;
   } else {
     try {
-      // Ambil semua antrian dari database
-      const queues = await queueVPS.find();
+      const activeVPS = await VPS.find({ isActive: true });
 
-      // Jika tidak ada antrian, gunakan IP dari permintaan
-      let minIp;
-      if (queues.length === 0) {
-        minIp = req.body.ip;
-      } else {
-        // Hitung jumlah antrian untuk setiap IP
-        const ipCounts = queues.reduce((acc, queue) => {
-          acc[queue.ip] = (acc[queue.ip] || 0) + 1;
-          return acc;
-        }, {});
-
-        // Cari IP dengan jumlah antrian paling sedikit
-        minIp = null;
-        let minCount = Infinity;
-        for (const [ip, count] of Object.entries(ipCounts)) {
-          if (count < minCount) {
-            minIp = ip;
-            minCount = count;
-          }
-        }
+      if (activeVPS.length === 0) {
+        throw new Error("Tidak ada VPS yang aktif.");
       }
-      // Buat antrian baru dengan IP yang ditemukan
-      const newQueue = await queueVPS.insertMany({
+
+      const queueCounts = await queueVPS.aggregate([
+        { $match: { ip: { $in: activeVPS.map((vps) => vps.ip) } } },
+        { $group: { _id: "$ip", count: { $sum: 1 } } },
+      ]);
+
+      const queueMap = {};
+      queueCounts.forEach((q) => {
+        queueMap[q._id] = q.count;
+      });
+
+      let targetVPS = activeVPS.find((vps) => !(vps.ip in queueMap));
+
+      if (!targetVPS) {
+        targetVPS = activeVPS[0];
+        let minQueueCount = queueMap[targetVPS.ip] || 0;
+
+        activeVPS.forEach((vps) => {
+          const count = queueMap[vps.ip] || 0;
+          if (count < minQueueCount) {
+            targetVPS = vps;
+            minQueueCount = count;
+          }
+        });
+      }
+      const dataInsert = {
         ip: minIp,
         userId: req.body.userId,
         updateId: req.body.updateId,
         chatId: body.chatId,
         url: body.url,
-        dateIn: today.format(),
-      });
+        dateIn: today.format(formatDateTime),
+      }
+      const newQueue = await queueVPS.insertMany(dataInsert);
+      const newQueueLog = await queueVPSLog.insertMany(dataInsert);
 
-      return res.status(200).send({
-        newQueue,
-        queues,
-        message: "Permintaan anda sedang kami proses",
-      });
+      const targetQueueCount = queueMap[targetVPS.ip] || 0;
+
+      return res.status(200).json({ message: targetQueueCount > 4 ? "Anda dalam antrian " + targetQueueCount + ", mohon kesediaanya untuk menunggu." 
+        : "Permintaan anda sedang kami proses" });
     } catch (error) {
-      return res.status(500).send({
-        error: error.message,
-        message: "Mohon maaf. Server Kami Sedang Error!",
-      });
+      return res.status(500).json({ message: "Mohon maaf. Server Kami Sedang Error!" });
     }
   }
 });
 
 router.post("/userRegister", async (req, res) => {
-  const today = dayjs().tz();
+  const today = momentTimeZone().tz("Asia/Jakarta");
 
   // body: userId, firstName, lastName, maxRequestPerDay
   const body = req.body;
@@ -235,15 +235,19 @@ router.post("/userRegister", async (req, res) => {
       // if user repeat order
       if (userIdExist?.userId !== undefined) {
         const removeUser = await users.deleteOne({ userId: body.userId });
+        const startDate = moment(userIdExist.startDate, "dddd DD MMMM YYYY HH:mm:ss");
+        const endDate = moment(userIdExist.endDate, "dddd DD MMMM YYYY HH:mm:ss");
         // if user active
-        if (today.isBetween(userIdExist.startDate, userIdExist.endDate)) {
-          const newEndDate = dayjs(userIdExist.endDate)
+        if (today.isBetween(startDate, endDate, null, '[]')) {
+          const newEndDate = moment(userIdExist.endDate)
             .add(user.duration, "day")
             .set("hour", today.hour())
-            .set("minute", today.minute());
-          const newStartDate = dayjs(userIdExist.startDate)
+            .set("minute", today.minute())
+            .format(formatDateTime);
+          const newStartDate = moment(userIdExist.startDate)
             .set("hour", today.hour())
-            .set("minute", today.minute());
+            .set("minute", today.minute())
+            .format(formatDateTime);
           const maxRequestPerDay =
             user.maxRequestPerDay > userIdExist.maxRequestPerDay
               ? user.maxRequestPerDay
@@ -261,57 +265,72 @@ router.post("/userRegister", async (req, res) => {
               startDate: newStartDate,
               maxRequestPerDay,
               endDate: newEndDate,
-              dateUp: today.format(),
+              dateUp: today.format(formatDateTime),
             }
           );
           const userLog = await users.findOne({ code: body.code });
           const insertUserLog = await userLogs.insertMany([userLog]);
           return res.status(200).json({
+            today,
             updatedUser,
             removeUser,
-            message: `Terima Kasih anda sudah berlangganan, langganan anda mulai dari ${newStartDate.format(
-              "dddd D MMMM YYYY HH:mm:ss"
-            )} hingga ${newEndDate.format("dddd D MMMM YYYY HH:mm:ss")}`,
+            message: `Terima Kasih anda sudah berlangganan, langganan anda mulai dari ${newStartDate} hingga ${newEndDate}`,
           });
         } else {
+          const newEndDate = moment(user.endDate)
+            .set("hour", today.hour())
+            .set("minute", today.minute())
+            .format(formatDateTime);
+          const newStartDate = moment(user.startDate)
+            .set("hour", today.hour())
+            .set("minute", today.minute())
+            .format(formatDateTime);
           const updatedUser = await users.updateOne(
             { code: body.code },
             {
               userId: body.userId,
               firstName: body.firstName,
               lastName: body.lastName,
+              startDate: newStartDate,
+              endDate: newEndDate,
               dateUp: today.format(),
             }
           );
           const userLog = await users.findOne({ code: body.code });
-          const insertUserLog = await userLogs.insertMany([userLog]);
+          const insertUserLog = await userLogs.insertMany([ userLog ]);
           return res.status(200).json({
+            today,
             updatedUser,
             removeUser,
-            message: `Terima Kasih anda sudah berlangganan, langganan anda mulai dari ${updatedUser.startDate.format(
-              "dddd D MMMM YYYY HH:mm:ss"
-            )} hingga ${updatedUser.endDate.format(
-              "dddd D MMMM YYYY HH:mm:ss"
-            )}`,
+            message: `Terima Kasih anda sudah berlangganan, langganan anda mulai dari ${newStartDate} hingga ${newEndDate}`,
           });
         }
       } else {
+        const newEndDate = moment(user.endDate)
+          .set("hour", today.hour())
+          .set("minute", today.minute())
+          .format(formatDateTime);
+        const newStartDate = moment(user.startDate)
+          .set("hour", today.hour())
+          .set("minute", today.minute())
+          .format(formatDateTime);
         const updatedUser = await users.updateOne(
           { code: body.code },
           {
             userId: body.userId,
             firstName: body.firstName,
             lastName: body.lastName,
-            dateUp: today.format(),
+            startDate: newStartDate,
+            endDate: newEndDate,
+            dateUp: today.format(formatDateTime),
           }
         );
         const userLog = await users.findOne({ code: body.code });
-        const insertUserLog = await userLogs.insertMany([userLog]);
+        const insertUserLog = await userLogs.insertMany([ userLog ]);
         return res.status(200).json({
+          today,
           updatedUser,
-          message: `Terima Kasih anda sudah berlangganan, langganan anda mulai dari ${updatedUser.startDate.format(
-            "dddd D MMMM YYYY HH:mm:ss"
-          )} hingga ${updatedUser.endDate.format("dddd D MMMM YYYY HH:mm:ss")}`,
+          message: `Terima Kasih anda sudah berlangganan, langganan anda mulai dari ${newStartDate} hingga ${newEndDate}`,
         });
       }
     } else {
