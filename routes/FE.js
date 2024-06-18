@@ -20,7 +20,9 @@ router.post("/userRegister", async (req, res) => {
         body.startDate === null || 
         body.endDate === null || 
         body.duration === null ||
-        body.maxRequestPerDay === null
+        body.maxRequestPerDay === null ||
+        body.email === null ||
+        body.phoneNumber === null
     ){
         return res.status(403).json({
             message: "Please Fill the Body"
@@ -43,6 +45,8 @@ router.post("/userRegister", async (req, res) => {
             maxRequestPerDay: body.maxRequestPerDay,
             dateIn: today.format(formatDateTime),
             duration: body.duration,
+            phoneNumber: body.phoneNumber,
+            email: body.email,
             // Part of Lambda
             userId: undefined,
             firstName: undefined,
