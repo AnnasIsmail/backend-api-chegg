@@ -8,10 +8,11 @@ const requestDay = require("../model/requestPerDay");
 const VPS = require("../model/VPS");
 const queueVPS = require("../model/queueVPS");
 const queueVPSLog = require("../model/queueVPSLog");
-const moment = require('moment');
-const momentTimeZone = require('moment-timezone');
-const formatDate = "DD MMMM YYYY";
-const formatDateTime = "dddd DD MMMM YYYY HH:mm:ss";
+const momentTimeZone = require("moment-timezone");
+
+const dbFormatDate = "DD MMMM YYYY";
+const dbFormatDateTime = "YYYY-MM-DDTHH:mm:ss";
+const userFormat = "dddd DD MMMM YYYY HH:mm:ss";
 
 router.post("/check", async (req, res) => {
   const today = momentTimeZone().tz("Asia/Jakarta");
@@ -36,7 +37,7 @@ router.post("/check", async (req, res) => {
   });
   await logUpdateId.insertMany({
     updateId: body.updateId,
-    dateTime: today.format(formatDateTime),
+    dateTime: today.format(dbFormatDateTime),
   });
   if (isExistUpdateId) {
     return res.status(403).json({
@@ -46,7 +47,7 @@ router.post("/check", async (req, res) => {
   } else {
     await listUpdateId.insertMany({
       updateId: body.updateId,
-      dateTime: today.format(formatDateTime),
+      dateTime: today.format(dbFormatDateTime),
       userId: body.userId,
     });
   }
@@ -55,9 +56,17 @@ router.post("/check", async (req, res) => {
   const query = users.where({ userId: body.userId });
   const user = await query.findOne();
   if (user?.userId !== undefined) {
-    const startDate = moment(user.startDate, "dddd DD MMMM YYYY HH:mm:ss");
-    const endDate = moment(user.endDate, "dddd DD MMMM YYYY HH:mm:ss");
-    if (today.isBetween(startDate, endDate, null, '()')) {
+    const startDate = momentTimeZone.tz(
+      user.startDate,
+      dbFormatDateTime,
+      "Asia/Jakarta"
+    );
+    const endDate = momentTimeZone.tz(
+      user.endDate,
+      dbFormatDateTime,
+      "Asia/Jakarta"
+    );
+    if (!today.isBetween(startDate, endDate, null, "[]")) {
       return res.status(403).json({
         message: "Langganan anda sudah kadaluarsa.",
         user,
@@ -72,7 +81,7 @@ router.post("/check", async (req, res) => {
   // Check Request Per Day
   const LatestRequest = await requestDay.findOne({
     userId: body.userId,
-    date: today.format(formatDate),
+    date: today.format(dbFormatDate),
   });
   if (LatestRequest?.userId) {
     if (
@@ -107,7 +116,7 @@ router.post("/check", async (req, res) => {
   }
 
   //Check VPS
-  const vpsList = await VPS.findOne({ isRunning: false });
+  const vpsList = await VPS.findOne({ isRunning: false, isActive: true });
   if (vpsList) {
     let response = {};
     let statusCode = 200; // Default status code
@@ -122,7 +131,7 @@ router.post("/check", async (req, res) => {
           updateId: body.updateId,
           chatId: body.chatId,
           url: body.url,
-          dateUp: today.format(formatDateTime),
+          dateUp: today.format(dbFormatDateTime),
         }
       );
 
@@ -183,23 +192,34 @@ router.post("/check", async (req, res) => {
           }
         });
       }
+
       const dataInsert = {
-        ip: minIp,
+        ip: targetVPS.ip,
         userId: req.body.userId,
         updateId: req.body.updateId,
         chatId: body.chatId,
         url: body.url,
-        dateIn: today.format(formatDateTime),
-      }
+        dateIn: today.format(dbFormatDateTime),
+      };
+
       const newQueue = await queueVPS.insertMany(dataInsert);
       const newQueueLog = await queueVPSLog.insertMany(dataInsert);
-
       const targetQueueCount = queueMap[targetVPS.ip] || 0;
 
-      return res.status(200).json({ message: targetQueueCount > 4 ? "Anda dalam antrian " + targetQueueCount + ", mohon kesediaanya untuk menunggu." 
-        : "Permintaan anda sedang kami proses" });
+      return res
+        .status(200)
+        .json({
+          message:
+            targetQueueCount > 4
+              ? "Anda dalam antrian " +
+                targetQueueCount +
+                ", mohon kesediaanya untuk menunggu."
+              : "Permintaan anda sedang kami proses",
+        });
     } catch (error) {
-      return res.status(500).json({ message: "Mohon maaf. Server Kami Sedang Error!" });
+      return res
+        .status(500)
+        .json({ message: "Mohon maaf. Server Kami Sedang Error!" });
     }
   }
 });
@@ -235,19 +255,27 @@ router.post("/userRegister", async (req, res) => {
       // if user repeat order
       if (userIdExist?.userId !== undefined) {
         const removeUser = await users.deleteOne({ userId: body.userId });
-        const startDate = moment(userIdExist.startDate, "dddd DD MMMM YYYY HH:mm:ss");
-        const endDate = moment(userIdExist.endDate, "dddd DD MMMM YYYY HH:mm:ss");
+        const startDate = momentTimeZone.tz(
+          userIdExist.startDate,
+          dbFormatDateTime,
+          "Asia/Jakarta"
+        );
+        const endDate = momentTimeZone.tz(
+          userIdExist.endDate,
+          dbFormatDateTime,
+          "Asia/Jakarta"
+        );
         // if user active
-        if (today.isBetween(startDate, endDate, null, '[]')) {
-          const newEndDate = moment(userIdExist.endDate)
+        if (today.isBetween(startDate, endDate, null, "[]")) {
+          const newStartDate = momentTimeZone.tz(
+            userIdExist.startDate,
+            "Asia/Jakarta"
+          );
+          const newEndDate = momentTimeZone
+            .tz(userIdExist.endDate, "Asia/Jakarta")
             .add(user.duration, "day")
             .set("hour", today.hour())
-            .set("minute", today.minute())
-            .format(formatDateTime);
-          const newStartDate = moment(userIdExist.startDate)
-            .set("hour", today.hour())
-            .set("minute", today.minute())
-            .format(formatDateTime);
+            .set("minute", today.minute());
           const maxRequestPerDay =
             user.maxRequestPerDay > userIdExist.maxRequestPerDay
               ? user.maxRequestPerDay
@@ -262,10 +290,10 @@ router.post("/userRegister", async (req, res) => {
               quantity: user.quantity + userIdExist.quantity,
               duration: user.duration + userIdExist.duration,
               price: user.price + userIdExist.price,
-              startDate: newStartDate,
               maxRequestPerDay,
-              endDate: newEndDate,
-              dateUp: today.format(formatDateTime),
+              startDate: newStartDate.format(dbFormatDateTime),
+              endDate: newEndDate.format(dbFormatDateTime),
+              dateUp: today.format(dbFormatDateTime),
             }
           );
           const userLog = await users.findOne({ code: body.code });
@@ -274,63 +302,57 @@ router.post("/userRegister", async (req, res) => {
             today,
             updatedUser,
             removeUser,
-            message: `Terima Kasih anda sudah berlangganan, langganan anda mulai dari ${newStartDate} hingga ${newEndDate}`,
+            message: `Terima Kasih anda sudah berlangganan, langganan anda mulai dari ${newStartDate.format(
+              userFormat
+            )} hingga ${newEndDate.format(userFormat)}`,
           });
         } else {
-          const newEndDate = moment(user.endDate)
-            .set("hour", today.hour())
-            .set("minute", today.minute())
-            .format(formatDateTime);
-          const newStartDate = moment(user.startDate)
-            .set("hour", today.hour())
-            .set("minute", today.minute())
-            .format(formatDateTime);
+          const newStartDate = today.clone();
+          const newEndDate = today.clone().add(user.duration, "day");
           const updatedUser = await users.updateOne(
             { code: body.code },
             {
               userId: body.userId,
               firstName: body.firstName,
               lastName: body.lastName,
-              startDate: newStartDate,
-              endDate: newEndDate,
+              startDate: newStartDate.format(dbFormatDateTime),
+              endDate: newEndDate.format(dbFormatDateTime),
               dateUp: today.format(),
             }
           );
           const userLog = await users.findOne({ code: body.code });
-          const insertUserLog = await userLogs.insertMany([ userLog ]);
+          const insertUserLog = await userLogs.insertMany([userLog]);
           return res.status(200).json({
             today,
             updatedUser,
             removeUser,
-            message: `Terima Kasih anda sudah berlangganan, langganan anda mulai dari ${newStartDate} hingga ${newEndDate}`,
+            message: `Terima Kasih anda sudah berlangganan, langganan anda mulai dari ${newStartDate.format(
+              userFormat
+            )} hingga ${newEndDate.format(userFormat)}`,
           });
         }
       } else {
-        const newEndDate = moment(user.endDate)
-          .set("hour", today.hour())
-          .set("minute", today.minute())
-          .format(formatDateTime);
-        const newStartDate = moment(user.startDate)
-          .set("hour", today.hour())
-          .set("minute", today.minute())
-          .format(formatDateTime);
+        const newStartDate = today.clone();
+        const newEndDate = today.clone().add(user.duration, "day");
         const updatedUser = await users.updateOne(
           { code: body.code },
           {
             userId: body.userId,
             firstName: body.firstName,
             lastName: body.lastName,
-            startDate: newStartDate,
-            endDate: newEndDate,
-            dateUp: today.format(formatDateTime),
+            startDate: newStartDate.format(dbFormatDateTime),
+            endDate: newEndDate.format(dbFormatDateTime),
+            dateUp: today.format(dbFormatDateTime),
           }
         );
         const userLog = await users.findOne({ code: body.code });
-        const insertUserLog = await userLogs.insertMany([ userLog ]);
+        const insertUserLog = await userLogs.insertMany([userLog]);
         return res.status(200).json({
           today,
           updatedUser,
-          message: `Terima Kasih anda sudah berlangganan, langganan anda mulai dari ${newStartDate} hingga ${newEndDate}`,
+          message: `Terima Kasih anda sudah berlangganan, langganan anda mulai dari ${newStartDate.format(
+            userFormat
+          )} hingga ${newEndDate.format(userFormat)}`,
         });
       }
     } else {
