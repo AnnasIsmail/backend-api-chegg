@@ -52,5 +52,5 @@ app.post("/userManagement/", async (req, res) => {
 
 
 app.use("/FE", FERoutes);
-app.use("/VPS", VPSRoutes);
-app.use("/lambda", lambdaRoutes);
+// app.use("/VPS", VPSRoutes);
+// app.use("/lambda", lambdaRoutes);
