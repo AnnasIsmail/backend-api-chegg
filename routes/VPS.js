@@ -4,16 +4,17 @@ const VPS = require("../model/VPS");
 const queueVPS = require("../model/queueVPS");
 const requestDay = require("../model/requestPerDay");
 const users = require("../model/user");
-const moment = require('moment');
 const momentTimeZone = require('moment-timezone');
-const formatDate = "DD MMMM YYYY";
-const formatDateTime = "dddd DD MMMM YYYY HH:mm:ss";
+
+const dbFormatDate = "DD MMMM YYYY";
+const dbFormatDateTime = "YYYY-MM-DDTHH:mm:ss";
+const userFormat = "dddd DD MMMM YYYY HH:mm:ss";
 
 function findEarliestDate(data) {
   let earliestDateObj = data[0];
 
   data.forEach((obj) => {
-    if (moment(obj.dateIn).isBefore(moment(earliestDateObj.dateIn))) {
+    if (momentTimeZone(obj.dateIn).isBefore(momentTimeZone(earliestDateObj.dateIn))) {
       earliestDateObj = obj;
     }
   });
@@ -47,7 +48,7 @@ router.post("/getQueue", async (req, res) => {
           updateId: null,
           chatId: null,
           url: null,
-          dateUp: today.format(formatDateTime),
+          dateUp: today.format(dbFormatDateTime),
         }
       );
       data["message"] = "Has Queue";
@@ -61,7 +62,7 @@ router.post("/getQueue", async (req, res) => {
           updateId: null,
           chatId: null,
           url: null,
-          dateUp: today.format(formatDateTime),
+          dateUp: today.format(dbFormatDateTime),
         }
       );
       return res.status(200).json({ message: "No Queue" });
@@ -89,7 +90,7 @@ router.post("/requestPerDay", async (req, res) => {
   //Check Exist RequestID
   const LatestRequest = await requestDay.findOne({
     userId: body.userId,
-    date: today.format(formatDate),
+    date: today.format(dbFormatDate),
   });
   let result = [];
   if (LatestRequest?.userId) {
@@ -97,7 +98,7 @@ router.post("/requestPerDay", async (req, res) => {
     result = await requestDay.updateOne(
       {
         userId: body.userId,
-        date: today.format(formatDate),
+        date: today.format(dbFormatDate),
       },
       {
         requestOrderDay,
@@ -117,7 +118,7 @@ router.post("/requestPerDay", async (req, res) => {
         maxRequestPerDay: user?.maxRequestPerDay,
         url: body.url,
         chatId: body.chatId,
-        dateUp: today.format(formatDate),
+        dateUp: today.format(dbFormatDate),
       },
     ]);
   }

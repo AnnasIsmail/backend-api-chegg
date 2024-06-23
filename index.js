@@ -8,6 +8,15 @@ require('dotenv').config();
 require("./connectDB");
 
 const FERoutes = require("./routes/FE");
+const VPSRoutes = require("./routes/VPS");
+const lambdaRoutes = require("./routes/lambda");
+
+const users = require("./model/user");
+const listUpdateId = require("./model/listUpdateId");
+const logUpdateId = require("./model/logUpdateId");
+const requestDay = require("./model/requestPerDay");
+const queueVPS = require("./model/queueVPS");
+const VPS = require("./model/VPS");
 
 const moment = require('moment');
 const momentTimeZone = require('moment-timezone');
@@ -43,3 +52,5 @@ app.post("/userManagement/", async (req, res) => {
 
 
 app.use("/FE", FERoutes);
+app.use("/VPS", VPSRoutes);
+app.use("/lambda", lambdaRoutes);
