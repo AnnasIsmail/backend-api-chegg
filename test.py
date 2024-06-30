@@ -1,14 +1,13 @@
-import requests
+import pyautogui
+import time
 
-data = {
-    'userId': "askdjakldja",
-    'updateId': "68656567567",
-    "url": "89as7d8asd",
-    "chatId": "ajdhady89",
-    "ip": "http://139.162.86.177:8000"
-}
-response = requests.post(
-    'http://139.162.86.177:5000/VPS/getQueue', json=data, timeout=30)
-response.raise_for_status()
-response.message = "not Error"
-print(response.message)
+def is_save_as_window_open() -> bool:
+    return "Error Page" in pyautogui.getAllTitles()
+
+start_time = time.time()
+while not is_save_as_window_open():
+    if time.time() - start_time > 120:
+        print(False)
+    time.sleep(1)
+print(True)
+pyautogui.hotkey('alt', 'f4')

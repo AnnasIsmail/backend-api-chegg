@@ -22,9 +22,13 @@ def is_save_as_window_open() -> bool:
     return "Save As" in pyautogui.getAllTitles()
 
 
-def wait_for_save_as_window(timeout=120) -> bool:
+def is_error_page_open() -> bool:
+    return "Error Page" in pyautogui.getAllTitles()
+
+
+def wait_for_save_as_or_error_page_window(timeout=120) -> bool:
     start_time = time.time()
-    while not is_save_as_window_open():
+    while not is_save_as_window_open() and not is_error_page_open():
         if time.time() - start_time > timeout:
             return False
         time.sleep(1)
@@ -89,9 +93,9 @@ def run(item: Item, myIp: str):
     input_file_path = item.id + ".html"
     webbrowser.get(chrome_path).open(url_post)
 
-    if not wait_for_save_as_window():
+    if not wait_for_save_as_or_error_page_window():
         pyautogui.hotkey('ctrl', 'r')
-        if not wait_for_save_as_window():
+        if not wait_for_save_as_or_error_page_window():
             urlTelegram = 'https://api.telegram.org/bot6740331088:AAHkgEEOjVkKLBhvpcHhTZw-o4Iq7CM4pzc/sendMessage'
             awsstring = f'Mohon maaf server kami sedang mengalami error, mohon coba kembali beberapa saat.'
             payload_telegram_bot = {
@@ -99,6 +103,17 @@ def run(item: Item, myIp: str):
                 'text': awsstring
             }
             return False
+
+    if is_error_page_open():
+        pyautogui.hotkey('alt', 'f4')
+        urlTelegram = 'https://api.telegram.org/bot6740331088:AAHkgEEOjVkKLBhvpcHhTZw-o4Iq7CM4pzc/sendMessage'
+        awsstring = f'Mohon maaf, halaman error terdeteksi. Mohon coba kembali beberapa saat.'
+        payload_telegram_bot = {
+            'chat_id': item.chatId,
+            'text': awsstring
+        }
+        requests.post(urlTelegram, json=payload_telegram_bot)
+        return False
 
     time.sleep(1)
     pyautogui.typewrite(id_update)
@@ -139,17 +154,3 @@ def create_item(item: Item):
     while True:
         queue_item = getQueue()
         if queue_item['message'] == "Error" or queue_item['message'] == "No Queue":
-            print("Tidak ada antrian yang tersedia. Berhenti menjalankan.")
-            break
-        else:
-            try:
-                run(Item(
-                    userId=queue_item['userId'],
-                    id=queue_item['updateId'],
-                    url=queue_item['url'],
-                    chatId=queue_item['chatId']
-                ), myIp)
-            except HTTPException as e:
-                return {"statusCode": e.status_code, "detail": e.detail}
-                
-    return {"statusCode": 200}
