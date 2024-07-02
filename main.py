@@ -9,7 +9,7 @@ from pydantic import BaseModel
 from requests.exceptions import RequestException
 
 userManagementIP = "http://umc-dev.ap-southeast-1.elasticbeanstalk.com"
-myIp = "http://139.162.86.177:8000"
+myIp = "http://159.65.132.139:8000"
 
 class Item(BaseModel):
     url: str
@@ -50,20 +50,40 @@ def Delete_Class_And_Nav(namaFIle: str):
     for aside_tag in soup.find_all("aside"):
         aside_tag.decompose()
 
+    for tag in soup.find_all(attrs={"class": "kHGFJH"}):
+        tag["class"] = "Kdhtc"
+
+    for tag in soup.find_all(attrs={"class": "fLuQaU"}):
+        tag["class"] = "kuEBJH"
+
+    for div_tag in soup.find_all("div", class_="gMfyqv"):
+        div_tag.decompose()
+
     with open(namaFIle, "w", encoding='utf-8') as file:
         file.write(str(soup))
 
 
-def getQueue() -> dict:
-    data = {
-        'ip': myIp
+def getQueue():
+    data = {'ip': myIp}
+    headers = {
+        'Content-Type': 'application/json'
     }
+
     try:
-        response = requests.post(userManagementIP + '/VPS/getQueue', json=data, timeout=30)
+        response = requests.post('http://umc-dev.ap-southeast-1.elasticbeanstalk.com/VPS/getQueue', json=data, headers=headers, timeout=30)
+        response.raise_for_status()  # Raise an error for bad status codes
         response_data = response.json()
+        return response_data
+    except requests.exceptions.HTTPError as http_err:
+        print(f"HTTP error occurred: {http_err}")
+    except requests.exceptions.ConnectionError as conn_err:
+        print(f"Connection error occurred: {conn_err}")
+    except requests.exceptions.Timeout as timeout_err:
+        print(f"Timeout error occurred: {timeout_err}")
     except RequestException as e:
-        print(f"Error getting queue: {e}")
-        response_data = {'message': "Error"}
+        print(f"An error occurred: {e}")
+
+    response_data = {'message': "Error"}
     return response_data
 
 
@@ -102,10 +122,12 @@ def run(item: Item, myIp: str):
                 'chat_id': item.chatId,
                 'text': awsstring
             }
-            return False
+            requests.post(urlTelegram, json=payload_telegram_bot)
+            return True
 
     if is_error_page_open():
         pyautogui.hotkey('alt', 'f4')
+        pyautogui.hotkey('ctrl', 'w')
         urlTelegram = 'https://api.telegram.org/bot6740331088:AAHkgEEOjVkKLBhvpcHhTZw-o4Iq7CM4pzc/sendMessage'
         awsstring = f'Mohon maaf, halaman error terdeteksi. Mohon coba kembali beberapa saat.'
         payload_telegram_bot = {
@@ -113,7 +135,7 @@ def run(item: Item, myIp: str):
             'text': awsstring
         }
         requests.post(urlTelegram, json=payload_telegram_bot)
-        return False
+        return True
 
     time.sleep(1)
     pyautogui.typewrite(id_update)
@@ -139,18 +161,28 @@ def run(item: Item, myIp: str):
     }
     requests.post(urlTelegram, json=payload_telegram_bot)
     requestPerDay(item, myIp)
+    return True
 
 
 app = FastAPI()
-
-
 @app.post("/")
 def create_item(item: Item):
-    try:
-        run(item, myIp)
-    except HTTPException as e:
-        return {"statusCode": e.status_code, "detail": e.detail}
+    run(item, myIp)
     
     while True:
         queue_item = getQueue()
         if queue_item['message'] == "Error" or queue_item['message'] == "No Queue":
+            print("Tidak ada antrian yang tersedia. Berhenti menjalankan.")
+            break
+        else:
+            try:
+                run(Item(
+                    userId=queue_item['userId'],
+                    id=queue_item['updateId'],
+                    url=queue_item['url'],
+                    chatId=queue_item['chatId']
+                ), myIp)
+            except HTTPException as e:
+                return {"statusCode": e.status_code, "detail": e.detail}
+                
+    return {"statusCode": 200}
