@@ -3,6 +3,7 @@ const cors = require("cors");
 const app = express();
 const PORT = process.env.PORT || 5000;
 var bodyParser = require("body-parser");
+const axios = require("axios");
 require('dotenv').config();
 
 require("./connectDB");
@@ -18,6 +19,7 @@ const requestDay = require("./model/requestPerDay");
 const queueVPS = require("./model/queueVPS");
 const VPS = require("./model/VPS");
 const errorMessage = require("./model/errorMessage");
+const admin = require("./model/admin");
 
 const moment = require('moment');
 const momentTimeZone = require('moment-timezone');
@@ -44,16 +46,16 @@ app.post("/userManagement/", async (req, res) => {
     const today = momentTimeZone().tz("Asia/Jakarta");
     
     try {
-        const errorSend = await errorMessage.insertMany([{
-            updateId: 123123123,
-            userId: 123123123,
-            url: "test",
-            chatId: 123123123,
-            message: "VPS Error IP: " ,
+        const admins = await admin.insertMany([{
+            userId: "5157078824",
+            chatId: "5157078824",
+            dateIn: today.format(dbFormatDateTime),
+          },{
+            userId: "905512354",
+            chatId: "905512354",
             dateIn: today.format(dbFormatDateTime),
           }]);
-        console.log(errorSend);
-        res.status(200).json({ errorSend });
+        res.status(200).json({ data: admins });
     } catch (error) {
         res.status(500).json({ error: error.message });
     }

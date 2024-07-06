@@ -8,7 +8,7 @@ const requestDay = require("../model/requestPerDay");
 const VPS = require("../model/VPS");
 const queueVPS = require("../model/queueVPS");
 const queueVPSLog = require("../model/queueVPSLog");
-const { notifyAdmins } = require("../model/admin");
+const { notifyAdmins } = require("../funstion/sendMessageToAdmin ");
 const errorMessage = require("../model/errorMessage");
 const momentTimeZone = require("moment-timezone");
 const sendMessageToAdmin = require('../funstion/sendMessageToAdmin ');
@@ -133,6 +133,42 @@ router.post("/check", async (req, res) => {
     let responseData = {};
 
     try {
+      const testVPS = await axios
+      .post(vpsList.ip + "/test")
+      .catch((error) => {
+        console.error("Error on axios.post:", error);
+      });
+
+      if(testVPS.data.statusCode !== 200){
+        const errorSend = await errorMessage.insertMany([{
+          updateId: body.updateId,
+          userId: body.userId,
+          url: body.url,
+          chatId: body.chatId,
+          message: "VPS tidak bisa dihubungi IP: " + vpsList.ip,
+          dateIn: today.format(dbFormatDateTime),
+        }]);
+    
+        notifyAdmins("VPS tidak bisa dihubungi IP: " + vpsList.ip + " Error ID: " + errorSend[0]._id)
+        await VPS.updateOne(
+          { ip: vpsList.ip },
+          {
+            isRunning: false,
+            isActive: false,
+            userId: body.userId,
+            updateId: body.updateId,
+            chatId: body.chatId,
+            url: body.url,
+            dateUp: today.format(dbFormatDateTime),
+          }
+        );
+        return res
+        .status(200)
+        .json({
+          message: "Mohon maaf server kita sedang Down, mohon mencoba beberapa waktu."
+        });
+      }
+
       await VPS.updateOne(
         { ip: vpsList.ip },
         {
@@ -161,7 +197,6 @@ router.post("/check", async (req, res) => {
       };
       res.status(statusCode).json(responseData);
     } catch (error) {
-
       const errorSend = await errorMessage.insertMany([{
         updateId: body.updateId,
         userId: body.userId,
@@ -185,17 +220,43 @@ router.post("/check", async (req, res) => {
   } else {
     try {
       const activeVPS = await VPS.find({ isActive: true });
-
+      console.log(activeVPS);
       if (activeVPS.length === 0) {
-        throw new Error("Tidak ada VPS yang aktif.");
+        const errorSend = await errorMessage.insertMany([{
+          updateId: body.updateId,
+          userId: body.userId,
+          url: body.url,
+          chatId: body.chatId,
+          message: "VPS tidak ada yang aktif ",
+          dateIn: today.format(dbFormatDateTime),
+        }]);
+    
+        notifyAdmins("VPS tidak ada yang aktif, mohon bantuannya gaes." + " Error ID: " + errorSend[0]._id)
+        return res
+        .status(200)
+        .json({
+          message: "Mohon maaf server kita sedang Down, mohon mencoba beberapa waktu."
+        });
       }
 
-      const vpsMoreThanFiveMinutes = activeVPS.find(vps => {
-        return moment().diff(moment(vps.dateUp), 'minutes') > 5;
+      const vpsMoreThanFiveMinutes = await activeVPS.find(vps => {
+        return moment().diff(moment(vps.dateUp), 'minutes') > 5 &&
+               vps.userId === "" &&
+               vps.chatId === "";
       });
+      
 
       if(vpsMoreThanFiveMinutes){
-        
+        const errorSend = await errorMessage.insertMany([{
+          updateId: body.updateId,
+          userId: body.userId,
+          url: body.url,
+          chatId: body.chatId,
+          message: "VPS Error IP: " + vpsList.ip + " " + error,
+          dateIn: today.format(dbFormatDateTime),
+        }]);
+    
+        notifyAdmins("VPS Error IP: " + vpsList.ip + " Error ID: " + errorSend[0]._id)
       }
 
       const queueCounts = await queueVPS.aggregate([
@@ -247,6 +308,7 @@ router.post("/check", async (req, res) => {
               : "Permintaan anda sedang kami proses",
         });
     } catch (error) {
+      console.log(error);
       return res
         .status(500)
         .json({ message: "Mohon maaf. Server Kami Sedang Error!" });

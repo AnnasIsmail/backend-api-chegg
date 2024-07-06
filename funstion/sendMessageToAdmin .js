@@ -12,7 +12,6 @@ const sendMessageToAdmin = async (chatId, text) => {
 
     try {
         const response = await axios.post(urlTelegram, payloadTelegramBot);
-        console.log(`Message sent to ${chatId}:`, response.data);
     } catch (error) {
         console.error(`Error sending message to ${chatId}:`, error);
     }
