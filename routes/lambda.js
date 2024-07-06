@@ -8,7 +8,10 @@ const requestDay = require("../model/requestPerDay");
 const VPS = require("../model/VPS");
 const queueVPS = require("../model/queueVPS");
 const queueVPSLog = require("../model/queueVPSLog");
+const { notifyAdmins } = require("../model/admin");
+const errorMessage = require("../model/errorMessage");
 const momentTimeZone = require("moment-timezone");
+const sendMessageToAdmin = require('../funstion/sendMessageToAdmin ');
 
 const dbFormatDate = "DD MMMM YYYY";
 const dbFormatDateTime = "YYYY-MM-DDTHH:mm:ss";
@@ -37,18 +40,25 @@ router.post("/check", async (req, res) => {
   });
   await logUpdateId.insertMany({
     updateId: body.updateId,
-    dateTime: today.format(dbFormatDateTime),
+    userId: body.userId,
+    chatId: body.chatId,
+    url: body.url,
+    date: today.format(dbFormatDate),
+    dateIn: today.format(dbFormatDateTime),
   });
   if (isExistUpdateId) {
-    return res.status(403).json({
+    return res.status(200).json({
       message: "UpdateId has already exist!",
       isExistUpdateId,
     });
   } else {
     await listUpdateId.insertMany({
       updateId: body.updateId,
-      dateTime: today.format(dbFormatDateTime),
       userId: body.userId,
+      chatId: body.chatId,
+      url: body.url,
+      date: today.format(dbFormatDate),
+      dateIn: today.format(dbFormatDateTime),
     });
   }
 
@@ -67,13 +77,13 @@ router.post("/check", async (req, res) => {
       "Asia/Jakarta"
     );
     if (!today.isBetween(startDate, endDate, null, "[]")) {
-      return res.status(403).json({
+      return res.status(200).json({
         message: "Langganan anda sudah kadaluarsa.",
         user,
       });
     }
   } else {
-    return res.status(403).json({
+    return res.status(200).json({
       message: "Anda belum terdaftar sebagai pelanggan.",
     });
   }
@@ -151,6 +161,18 @@ router.post("/check", async (req, res) => {
       };
       res.status(statusCode).json(responseData);
     } catch (error) {
+
+      const errorSend = await errorMessage.insertMany([{
+        updateId: body.updateId,
+        userId: body.userId,
+        url: body.url,
+        chatId: body.chatId,
+        message: "VPS Error IP: " + vpsList.ip + " " + error,
+        dateIn: today.format(dbFormatDateTime),
+      }]);
+  
+      notifyAdmins("VPS Error IP: " + vpsList.ip + " Error ID: " + errorSend[0]._id)
+
       statusCode = 500;
       responseData = {
         message: "Server Kami Sedang Error!",
@@ -166,6 +188,14 @@ router.post("/check", async (req, res) => {
 
       if (activeVPS.length === 0) {
         throw new Error("Tidak ada VPS yang aktif.");
+      }
+
+      const vpsMoreThanFiveMinutes = activeVPS.find(vps => {
+        return moment().diff(moment(vps.dateUp), 'minutes') > 5;
+      });
+
+      if(vpsMoreThanFiveMinutes){
+        
       }
 
       const queueCounts = await queueVPS.aggregate([
@@ -358,6 +388,57 @@ router.post("/userRegister", async (req, res) => {
     } else {
       return res.status(403).json({
         message: "Kode tidak terdaftar!",
+      });
+    }
+  } catch (error) {
+    console.error(error);
+    return res.status(500).json({
+      message: "Internal Server Error",
+    });
+  }
+});
+
+router.post("/durasiUser", async (req, res) => {
+  const today = momentTimeZone().tz("Asia/Jakarta");
+
+  // body: userId
+  const body = req.body;
+
+  if (
+    body.userId === undefined
+  ) {
+    return res.status(403).json({
+      message: "minus body.",
+    });
+  }
+  try {
+    const user = await users.findOne({ userId: body.userId });
+    if (user) {
+      const startDate = momentTimeZone.tz(
+        user.startDate,
+        dbFormatDateTime,
+        "Asia/Jakarta"
+      );
+      const endDate = momentTimeZone.tz(
+        user.endDate,
+        dbFormatDateTime,
+        "Asia/Jakarta"
+      );
+      if (!today.isBetween(startDate, endDate, null, "[]")) {
+        return res.status(200).json({
+          message: "Langganan anda sudah kadaluarsa.",
+          user,
+        });
+      }
+      return res.status(200).json({
+        user,
+        message: `Langganan anda mulai dari ${startDate.format(
+          userFormat
+        )} hingga ${endDate.format(userFormat)}`,
+      });
+    } else {
+      return res.status(403).json({
+        message: "Anda belum terdaftar sebagai Pelanggan!",
       });
     }
   } catch (error) {

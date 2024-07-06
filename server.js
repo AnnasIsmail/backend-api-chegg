@@ -17,10 +17,12 @@ const logUpdateId = require("./model/logUpdateId");
 const requestDay = require("./model/requestPerDay");
 const queueVPS = require("./model/queueVPS");
 const VPS = require("./model/VPS");
+const errorMessage = require("./model/errorMessage");
 
 const moment = require('moment');
 const momentTimeZone = require('moment-timezone');
-
+const dbFormatDate = "DD MMMM YYYY";
+const dbFormatDateTime = "YYYY-MM-DDTHH:mm:ss";
 
 // ----------------------------------------------------------------------
 
@@ -39,12 +41,19 @@ app.get("/", async (req, res) => {
 
 
 app.post("/userManagement/", async (req, res) => {
+    const today = momentTimeZone().tz("Asia/Jakarta");
     
     try {
-        const today = momentTimeZone().tz("Asia/Jakarta");
-        const startDate = moment('Sunday 16 June 2024 11:59:00', "dddd DD MMMM YYYY HH:mm:ss");
-        const endDate = moment('Saturday 22 June 2024 18:59:00', "dddd DD MMMM YYYY HH:mm:ss");
-        res.status(200).json({ condition: today.isBetween(startDate, endDate, null, '[]'), today: today.format("DD MMMM YYYY")});
+        const errorSend = await errorMessage.insertMany([{
+            updateId: 123123123,
+            userId: 123123123,
+            url: "test",
+            chatId: 123123123,
+            message: "VPS Error IP: " ,
+            dateIn: today.format(dbFormatDateTime),
+          }]);
+        console.log(errorSend);
+        res.status(200).json({ errorSend });
     } catch (error) {
         res.status(500).json({ error: error.message });
     }
