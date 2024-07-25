@@ -1,40 +1,104 @@
+import json
 import requests
-import time
-from datetime import datetime
+import re
 
-# URL API endpoint
-api_url = "http://159.65.132.139:8000"
+def is_guid(input_string):
+    guid_pattern = re.compile(r'^[{]?[0-9a-fA-F]{8}[-]?[0-9a-fA-F]{4}[-]?[0-9a-fA-F]{4}[-]?[0-9a-fA-F]{4}[-]?[0-9a-fA-F]{12}[}]?$')
+    match = guid_pattern.match(input_string)
+    return match is not None
 
-# Parameter POST
-post_data = {
-    'userId': "5157078824",
-    'updateId': "",
-    "url": "",
-    "chatId": "5157078824",
-}
-
-# Fungsi untuk melakukan panggilan API
-def hit_api():
+def lambda_handler(event, context):
+    print(event)
     try:
-        print(f"{datetime.now()} - Start Calling API...")
-        start_time = time.time()
-        response = requests.post(api_url, json=post_data, timeout=240)  # Timeout 4 menit
-        elapsed_time = time.time() - start_time
+        body=json.loads(event['body'])
+        update_id=body['update_id']
+        chat_id=body['message']['chat']['id']
+        user_id=body['message']['from']['id']
+        firstName=body['message']['from']['first_name']
+        lastName=body['message']['from']['last_name']
+        message_part=body['message'].get('text')
+        print(str(message_part))
+        url = f'https://api.telegram.org/bot6740331088:AAHkgEEOjVkKLBhvpcHhTZw-o4Iq7CM4pzc/sendMessage'
+        
+        if is_guid(str(message_part)):
+            code=body['message'].get('text')
 
-        if response.status_code == 200:
-            print(f"{datetime.now()} - Response received: {response.json()} (Elapsed time: {elapsed_time:.2f} seconds)")
+            data={  
+                'userId': str(user_id),
+                'firstName': str(firstName),
+                'lastName': str(lastName),
+                'code': str(code)
+            }
+            response = requests.post('http://umc-dev.ap-southeast-1.elasticbeanstalk.com/lambda/userRegister', json=data)
+            response_data = response.json()
+    
+            payload_telegram_bot = {
+                'chat_id' : chat_id,
+                'text' : str(response_data['message'])
+            }
+            requests.post(url,json=payload_telegram_bot)
+    
+            return  {"statusCode": 200}
+            
+        elif message_part == '/start':
+            payload_telegram_bot = {
+                'chat_id': chat_id,
+                'text': (
+                    f'Halo {firstName} {lastName} Warm Greetings from Technology Solution ID ✨. Kindly contant us with https://linktr.ee/techsolutionid\n'
+
+                    'One Stop Solution for your Productivity Tools!\n'
+                    '📢 Admin Support 24/7\n'
+                    '❤ Full Warranty Claim\n'
+                    '🤝 50% Discount for Resellers'
+                )
+            }
+            requests.post(url,json=payload_telegram_bot)
+            
+            return  {"statusCode": 200}
+        elif message_part == '/durasi':
+            firstName=body['message']['from']['first_name']
+            lastName=body['message']['from']['last_name']
+            code=body['message'].get('text')
+
+            data={  
+                'userId': str(user_id),
+            }
+            response = requests.post('http://umc-dev.ap-southeast-1.elasticbeanstalk.com/lambda/durasiUser', json=data)
+            response_data = response.json()
+    
+            payload_telegram_bot = {
+                'chat_id' : chat_id,
+                'text' : str(response_data['message'])
+            }
+            requests.post(url,json=payload_telegram_bot)
+    
+            return  {"statusCode": 200}
+        elif "https://www.chegg.com" in message_part:
+
+            data={  
+                'updateId': str(update_id),
+                'userId': str(user_id),
+                'url': str(message_part),
+                'chatId': str(chat_id)
+            }
+            response = requests.post('http://umc-dev.ap-southeast-1.elasticbeanstalk.com/lambda/check', json=data)
+            response_data = response.json()
+            print("Response:", response_data)
+
+            payload_telegram_bot = {
+                'chat_id' : chat_id,
+                'text' : str(response_data['message'])
+            }
+            requests.post(url,json=payload_telegram_bot)
+
+            return  {"statusCode": 200}
         else:
-            print(f"{datetime.now()} - Error: Received status code {response.status_code} (Elapsed time: {elapsed_time:.2f} seconds)")
-    except requests.exceptions.Timeout:
-        print(f"{datetime.now()} - Timeout after 4 minutes.")
-    except requests.exceptions.RequestException as e:
-        print(f"{datetime.now()} - Request failed: {e}")
-
-# Fungsi utama untuk menjalankan panggilan API berulang setiap 5 menit
-def main():
-    while True:
-        hit_api()
-        time.sleep(300)  # Tunggu 5 menit sebelum melakukan panggilan API berikutnya
-
-if __name__ == "__main__":
-    main()
+            payload_linktidakditerima = {
+                'chat_id' : chat_id,
+                'text' : "Something wrong with the URL, kindly check typing of the url and try again. Thank you"
+                }
+            requests.post(url,json=payload_linktidakditerima)
+            return  {"statusCode": 200}
+            
+    except:
+        return  {"statusCode": 200}

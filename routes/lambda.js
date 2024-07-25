@@ -11,7 +11,7 @@ const queueVPSLog = require("../model/queueVPSLog");
 const { notifyAdmins } = require("../funstion/sendMessageToAdmin ");
 const errorMessage = require("../model/errorMessage");
 const momentTimeZone = require("moment-timezone");
-const sendMessageToAdmin = require('../funstion/sendMessageToAdmin ');
+const sendMessageToAdmin = require("../funstion/sendMessageToAdmin ");
 
 const dbFormatDate = "DD MMMM YYYY";
 const dbFormatDateTime = "YYYY-MM-DDTHH:mm:ss";
@@ -20,14 +20,16 @@ const userFormat = "dddd DD MMMM YYYY HH:mm:ss";
 router.post("/check", async (req, res) => {
   const today = momentTimeZone().tz("Asia/Jakarta");
 
-  // body: updateId, userId, url, chatId
+  // body: updateId, userId, url, chatId, firstName, lastName
   const body = req.body;
 
   if (
     body.updateId == undefined ||
     body.userId == undefined ||
     body.url == undefined ||
-    body.chatId == undefined
+    body.chatId == undefined ||
+    body.firstName == undefined ||
+    body.lastName == undefined
   ) {
     return res.status(403).json({
       message: "Minus Body Request.",
@@ -78,13 +80,13 @@ router.post("/check", async (req, res) => {
     );
     if (!today.isBetween(startDate, endDate, null, "[]")) {
       return res.status(200).json({
-        message: "Langganan anda sudah kadaluarsa.",
+        message: `Halo ${body.firstName} ${body.lastName}, thank you for being member. Currently your member status are expired and we’re waiting for your next feedback -TechSolutionID`,
         user,
       });
     }
   } else {
     return res.status(200).json({
-      message: "Anda belum terdaftar sebagai pelanggan.",
+      message: `Halo ${body.firstName} ${body.lastName}, thank you for reaching us. Currently you are not member of our subscription services, kindly contact us on https://linktr.ee/techsolutionid`,
     });
   }
 
@@ -113,13 +115,14 @@ router.post("/check", async (req, res) => {
     if (vpsAlreadyExist || QueueVPSVpsAlreadyExist) {
       return res.status(201).send({
         message:
-          "Permintaan anda sebelumnya sedang kami proses, mohon menunggu sampai selesai.",
+          "Your previous request is being processed by us, please wait until it is complete thank you",
       });
     }
   } catch (error) {
     statusCode = 500;
     responseData = {
-      message: "Server Kami Sedang Error!",
+      message:
+        "There are currently a lot of requests on our server, please kindly wait about two minutes thank you",
       error: error.message,
       ip: vpsList.ip,
     };
@@ -134,22 +137,29 @@ router.post("/check", async (req, res) => {
 
     try {
       const testVPS = await axios
-      .post(vpsList.ip + "/test")
-      .catch((error) => {
-        console.error("Error on axios.post:", error);
-      });
+        .post(vpsList.ip + "/test", {}, { timeout: 30000 })
+        .catch((error) => {
+          console.error("Error on axios.post:", error);
+        });
 
-      if(testVPS.data.statusCode !== 200){
-        const errorSend = await errorMessage.insertMany([{
-          updateId: body.updateId,
-          userId: body.userId,
-          url: body.url,
-          chatId: body.chatId,
-          message: "VPS tidak bisa dihubungi IP: " + vpsList.ip,
-          dateIn: today.format(dbFormatDateTime),
-        }]);
-    
-        notifyAdmins("VPS tidak bisa dihubungi IP: " + vpsList.ip + " Error ID: " + errorSend[0]._id)
+      if (testVPS.data.statusCode !== 200) {
+        const errorSend = await errorMessage.insertMany([
+          {
+            updateId: body.updateId,
+            userId: body.userId,
+            url: body.url,
+            chatId: body.chatId,
+            message: "VPS tidak bisa dihubungi IP: " + vpsList.ip,
+            dateIn: today.format(dbFormatDateTime),
+          },
+        ]);
+
+        notifyAdmins(
+          "VPS tidak bisa dihubungi IP: " +
+            vpsList.ip +
+            " Error ID: " +
+            errorSend[0]._id
+        );
         await VPS.updateOne(
           { ip: vpsList.ip },
           {
@@ -162,10 +172,9 @@ router.post("/check", async (req, res) => {
             dateUp: today.format(dbFormatDateTime),
           }
         );
-        return res
-        .status(200)
-        .json({
-          message: "Mohon maaf server kita sedang Down, mohon mencoba beberapa waktu."
+        return res.status(200).json({
+          message:
+            "We are experiencing server maintenance. Please send the url again, thank you",
         });
       }
 
@@ -193,24 +202,29 @@ router.post("/check", async (req, res) => {
         });
       responseData = {
         ip: vpsList.ip,
-        message: "Permintaan anda sedang kami proses",
+        message: "We are processing your request, kindly wait for the feedback",
       };
       res.status(statusCode).json(responseData);
     } catch (error) {
-      const errorSend = await errorMessage.insertMany([{
-        updateId: body.updateId,
-        userId: body.userId,
-        url: body.url,
-        chatId: body.chatId,
-        message: "VPS Error IP: " + vpsList.ip + " " + error,
-        dateIn: today.format(dbFormatDateTime),
-      }]);
-  
-      notifyAdmins("VPS Error IP: " + vpsList.ip + " Error ID: " + errorSend[0]._id)
+      const errorSend = await errorMessage.insertMany([
+        {
+          updateId: body.updateId,
+          userId: body.userId,
+          url: body.url,
+          chatId: body.chatId,
+          message: "VPS Error IP: " + vpsList.ip + " " + error,
+          dateIn: today.format(dbFormatDateTime),
+        },
+      ]);
+
+      notifyAdmins(
+        "VPS Error IP: " + vpsList.ip + " Error ID: " + errorSend[0]._id
+      );
 
       statusCode = 500;
       responseData = {
-        message: "Server Kami Sedang Error!",
+        message:
+          "We are experiencing server maintenance. Please send the url again, thank you",
         error: error.message,
         ip: vpsList.ip,
       };
@@ -222,41 +236,51 @@ router.post("/check", async (req, res) => {
       const activeVPS = await VPS.find({ isActive: true });
       console.log(activeVPS);
       if (activeVPS.length === 0) {
-        const errorSend = await errorMessage.insertMany([{
-          updateId: body.updateId,
-          userId: body.userId,
-          url: body.url,
-          chatId: body.chatId,
-          message: "VPS tidak ada yang aktif ",
-          dateIn: today.format(dbFormatDateTime),
-        }]);
-    
-        notifyAdmins("VPS tidak ada yang aktif, mohon bantuannya gaes." + " Error ID: " + errorSend[0]._id)
-        return res
-        .status(200)
-        .json({
-          message: "Mohon maaf server kita sedang Down, mohon mencoba beberapa waktu."
+        const errorSend = await errorMessage.insertMany([
+          {
+            updateId: body.updateId,
+            userId: body.userId,
+            url: body.url,
+            chatId: body.chatId,
+            message: "VPS tidak ada yang aktif ",
+            dateIn: today.format(dbFormatDateTime),
+          },
+        ]);
+
+        notifyAdmins(
+          "VPS tidak ada yang aktif, mohon bantuannya gaes." +
+            " Error ID: " +
+            errorSend[0]._id
+        );
+        return res.status(200).json({
+          message:
+            "We are experiencing server maintenance. Please send the url again, thank you",
         });
       }
 
-      const vpsMoreThanFiveMinutes = await activeVPS.find(vps => {
-        return moment().diff(moment(vps.dateUp), 'minutes') > 5 &&
-               vps.userId === "" &&
-               vps.chatId === "";
+      const vpsMoreThanFiveMinutes = await activeVPS.find((vps) => {
+        return (
+          moment().diff(moment(vps.dateUp), "minutes") > 5 &&
+          vps.userId === "" &&
+          vps.chatId === ""
+        );
       });
-      
 
-      if(vpsMoreThanFiveMinutes){
-        const errorSend = await errorMessage.insertMany([{
-          updateId: body.updateId,
-          userId: body.userId,
-          url: body.url,
-          chatId: body.chatId,
-          message: "VPS Error IP: " + vpsList.ip + " " + error,
-          dateIn: today.format(dbFormatDateTime),
-        }]);
-    
-        notifyAdmins("VPS Error IP: " + vpsList.ip + " Error ID: " + errorSend[0]._id)
+      if (vpsMoreThanFiveMinutes) {
+        const errorSend = await errorMessage.insertMany([
+          {
+            updateId: body.updateId,
+            userId: body.userId,
+            url: body.url,
+            chatId: body.chatId,
+            message: "VPS Error IP: " + vpsList.ip + " " + error,
+            dateIn: today.format(dbFormatDateTime),
+          },
+        ]);
+
+        notifyAdmins(
+          "VPS Error IP: " + vpsList.ip + " Error ID: " + errorSend[0]._id
+        );
       }
 
       const queueCounts = await queueVPS.aggregate([
@@ -297,21 +321,22 @@ router.post("/check", async (req, res) => {
       const newQueueLog = await queueVPSLog.insertMany(dataInsert);
       const targetQueueCount = queueMap[targetVPS.ip] || 0;
 
-      return res
-        .status(200)
-        .json({
-          message:
-            targetQueueCount > 4
-              ? "Anda dalam antrian " +
-                targetQueueCount +
-                ", mohon kesediaanya untuk menunggu."
-              : "Permintaan anda sedang kami proses",
-        });
+      return res.status(200).json({
+        message:
+          targetQueueCount > 4
+            ? "There are currently a lot of requests on our server, please kindly wait about " +
+              targetQueueCount +
+              " minutes thank you"
+            : "We are processing your request, kindly wait for the feedback",
+      });
     } catch (error) {
       console.log(error);
       return res
         .status(500)
-        .json({ message: "Mohon maaf. Server Kami Sedang Error!" });
+        .json({
+          message:
+            "We are experiencing server maintenance. Please send the url again, thank you",
+        });
     }
   }
 });
@@ -394,9 +419,11 @@ router.post("/userRegister", async (req, res) => {
             today,
             updatedUser,
             removeUser,
-            message: `Terima Kasih anda sudah berlangganan, langganan anda mulai dari ${newStartDate.format(
+            message: `Halo ${body.firstName} ${
+              body.lastName
+            }, thank you for being member. Your member duration start from ${newStartDate.format(
               userFormat
-            )} hingga ${newEndDate.format(userFormat)}`,
+            )} until ${newEndDate.format(userFormat)}`,
           });
         } else {
           const newStartDate = today.clone();
@@ -418,9 +445,11 @@ router.post("/userRegister", async (req, res) => {
             today,
             updatedUser,
             removeUser,
-            message: `Terima Kasih anda sudah berlangganan, langganan anda mulai dari ${newStartDate.format(
+            message: `Halo ${body.firstName} ${
+              body.lastName
+            }, thank you for being member. Your member duration start from ${newStartDate.format(
               userFormat
-            )} hingga ${newEndDate.format(userFormat)}`,
+            )} until ${newEndDate.format(userFormat)}`,
           });
         }
       } else {
@@ -442,9 +471,11 @@ router.post("/userRegister", async (req, res) => {
         return res.status(200).json({
           today,
           updatedUser,
-          message: `Terima Kasih anda sudah berlangganan, langganan anda mulai dari ${newStartDate.format(
+          message: `Halo ${body.firstName} ${
+            body.lastName
+          }, thank you for being member. Your member duration start from ${newStartDate.format(
             userFormat
-          )} hingga ${newEndDate.format(userFormat)}`,
+          )} until ${newEndDate.format(userFormat)}`,
         });
       }
     } else {
@@ -463,11 +494,13 @@ router.post("/userRegister", async (req, res) => {
 router.post("/durasiUser", async (req, res) => {
   const today = momentTimeZone().tz("Asia/Jakarta");
 
-  // body: userId
+  // body: userId, firstName, lastName
   const body = req.body;
 
   if (
-    body.userId === undefined
+    body.userId === undefined ||
+    body.firstName == undefined ||
+    body.lastName == undefined
   ) {
     return res.status(403).json({
       message: "minus body.",
@@ -488,25 +521,28 @@ router.post("/durasiUser", async (req, res) => {
       );
       if (!today.isBetween(startDate, endDate, null, "[]")) {
         return res.status(200).json({
-          message: "Langganan anda sudah kadaluarsa.",
+          message: `Halo ${body.firstName} ${body.lastName}, thank you for being member. Currently your member status are expired and we’re waiting for your next feedback -TechSolutionID`,
           user,
         });
       }
       return res.status(200).json({
         user,
-        message: `Langganan anda mulai dari ${startDate.format(
+        message: `Halo ${body.firstName} ${
+          body.lastName
+        }, thank you for being member. Your member duration start from ${startDate.format(
           userFormat
-        )} hingga ${endDate.format(userFormat)}`,
+        )} until ${endDate.format(userFormat)}`,
       });
     } else {
       return res.status(403).json({
-        message: "Anda belum terdaftar sebagai Pelanggan!",
+        message: `Halo ${body.firstName} ${body.lastName}, thank you for reaching us. Currently you are not member of our subscription services, kindly contact us on https://linktr.ee/techsolutionid`,
       });
     }
   } catch (error) {
     console.error(error);
     return res.status(500).json({
-      message: "Internal Server Error",
+      message:
+        "We are experiencing server maintenance. Please send the url again, thank you",
     });
   }
 });

@@ -13,6 +13,9 @@ const errorMessage = mongoose.model("errorMessage", {
   chatId: {
     type: String,
   },
+  chatId: {
+    type: String,
+  },
   message: {
     type: String,
   },

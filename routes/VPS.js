@@ -5,6 +5,7 @@ const queueVPS = require("../model/queueVPS");
 const requestDay = require("../model/requestPerDay");
 const users = require("../model/user");
 const momentTimeZone = require('moment-timezone');
+const errorMessage = require("../model/errorMessage");
 
 const dbFormatDate = "DD MMMM YYYY";
 const dbFormatDateTime = "YYYY-MM-DDTHH:mm:ss";
@@ -125,6 +126,35 @@ router.post("/requestPerDay", async (req, res) => {
 
   return res.status(200).json({
     message: "Request Per Day Updated Successfully",
+  });
+});
+
+router.post("/errorMessage", async (req, res) => {
+  const today = momentTimeZone().tz("Asia/Jakarta");
+
+  // body: userId, updateId, url, chatId, Message, IP, feature
+  const body = req.body;
+
+  if (!body.updateId || !body.userId || !body.url || !body.chatId|| !body.message|| !body.ip) {
+    return res.status(403).json({
+      message: "minus body!",
+    });
+  }
+
+  const errorSend = await errorMessage.insertMany([{
+    updateId: body.updateId,
+    userId: body.userId,
+    url: body.url,
+    chatId: body.chatId,
+    feature: body.feature,
+    message: "VPS Error IP: " + body.ip + " " + body.message,
+    dateIn: today.format(dbFormatDateTime),
+  }]);
+
+  notifyAdmins("Error From VPS, on feature " + body.feature +  " IP: " + vpsList.ip + " Error ID: " + errorSend[0]._id)
+
+  return res.status(200).json({
+    message: "Successfully",
   });
 });
 
