@@ -6,6 +6,7 @@ const requestDay = require("../model/requestPerDay");
 const users = require("../model/user");
 const momentTimeZone = require('moment-timezone');
 const errorMessage = require("../model/errorMessage");
+const { notifyAdmins } = require("../funstion/sendMessageToAdmin ");
 
 const dbFormatDate = "DD MMMM YYYY";
 const dbFormatDateTime = "YYYY-MM-DDTHH:mm:ss";
@@ -151,7 +152,7 @@ router.post("/errorMessage", async (req, res) => {
     dateIn: today.format(dbFormatDateTime),
   }]);
 
-  notifyAdmins("Error From VPS, on feature " + body.feature +  " IP: " + vpsList.ip + " Error ID: " + errorSend[0]._id)
+  notifyAdmins("Error From VPS, on feature " + body?.feature +  " IP: " + vpsList?.ip + " Error ID: " + errorSend[0]?._id)
 
   return res.status(200).json({
     message: "Successfully",

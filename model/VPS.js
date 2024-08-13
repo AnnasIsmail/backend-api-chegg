@@ -16,6 +16,9 @@ const VPS = mongoose.model("VPS", {
   userId: {
     type: String,
   },
+  errorId: {
+    type: String,
+  },
   updateId: {
     type: String,
   },

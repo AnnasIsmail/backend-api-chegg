@@ -19,6 +19,9 @@ const errorMessage = mongoose.model("errorMessage", {
   message: {
     type: String,
   },
+  feature: {
+    type: String,
+  },
   dateIn: {
     type: String,
   },

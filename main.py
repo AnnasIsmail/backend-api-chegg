@@ -11,7 +11,7 @@ from typing import Dict
 import datetime
 import threading
 
-userManagementIP = "http://umc-dev.ap-southeast-1.elasticbeanstalk.com"
+userManagementIP = "http://umc-production.ap-southeast-1.elasticbeanstalk.com"
 myIp = "http://159.65.132.139:8000"
 
 class Item(BaseModel):
@@ -157,7 +157,7 @@ def run(item: Item, myIp: str):
         pyautogui.hotkey('ctrl', 'r')
         if not wait_for_save_as_or_error_page_window():
             url_telegram = 'https://api.telegram.org/bot6740331088:AAHkgEEOjVkKLBhvpcHhTZw-o4Iq7CM4pzc/sendMessage'
-            aws_string = 'Mohon maaf server kami sedang mengalami error, mohon coba kembali beberapa saat.'
+            aws_string = 'We are experiencing server maintenance. Please send the url again, thank you.'
             payload_telegram_bot = {
                 'chat_id': item.chatId,
                 'text': aws_string
@@ -170,7 +170,7 @@ def run(item: Item, myIp: str):
         pyautogui.hotkey('alt', 'f4')
         pyautogui.hotkey('ctrl', 'w')
         url_telegram = 'https://api.telegram.org/bot6740331088:AAHkgEEOjVkKLBhvpcHhTZw-o4Iq7CM4pzc/sendMessage'
-        aws_string = 'Mohon maaf, halaman error terdeteksi. Mohon coba kembali beberapa saat.'
+        aws_string = 'We are experiencing server maintenance. Please send the url again, thank you.'
         payload_telegram_bot = {
             'chat_id': item.chatId,
             'text': aws_string

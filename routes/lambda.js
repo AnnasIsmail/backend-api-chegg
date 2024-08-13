@@ -142,7 +142,7 @@ router.post("/check", async (req, res) => {
           console.error("Error on axios.post:", error);
         });
 
-      if (testVPS.data.statusCode !== 200) {
+      if (testVPS?.data.statusCode !== 200) {
         const errorSend = await errorMessage.insertMany([
           {
             updateId: body.updateId,
@@ -165,9 +165,7 @@ router.post("/check", async (req, res) => {
           {
             isRunning: false,
             isActive: false,
-            userId: body.userId,
-            updateId: body.updateId,
-            chatId: body.chatId,
+            errorId: errorSend[0]._id,
             url: body.url,
             dateUp: today.format(dbFormatDateTime),
           }
