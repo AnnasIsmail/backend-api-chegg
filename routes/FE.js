@@ -6,6 +6,8 @@ const moment = require('moment');
 const momentTimeZone = require('moment-timezone');
 const formatDate = "DD MMMM YYYY";
 const formatDateTime = "dddd DD MMMM YYYY HH:mm:ss";
+const dbFormatDateTime = "YYYY-MM-DDTHH:mm:ss";
+const errorMessage = require("../model/errorMessage");
 
 router.post("/userRegister", async (req, res) => {
     const today = momentTimeZone().tz("Asia/Jakarta");
@@ -130,10 +132,10 @@ router.post("/listUser", async (req, res) => {
         if(x.userId === undefined && x.firstName === undefined && x.lastName === undefined){
             notRegisteredYetUser += 1;
             x.status = "Not Registered Yet";
-        }else if(today.isBetween(moment(x.startDate, formatDateTime), moment(x.endDate, formatDateTime))){
+        }else if(today.isBetween(moment(x.startDate, dbFormatDateTime), moment(x.endDate, dbFormatDateTime))){
             activeUser += 1;
             x.status = "Active";
-        }else if(!today.isBetween(moment(x.startDate, formatDateTime), moment(x.endDate, formatDateTime))){
+        }else if(!today.isBetween(moment(x.startDate, dbFormatDateTime), moment(x.endDate, dbFormatDateTime))){
             notActiveUser += 1;
             x.status = "Not Active";
         }
@@ -142,5 +144,48 @@ router.post("/listUser", async (req, res) => {
 
     return res.status(200).json({user, notRegisteredYetUser, activeUser, notActiveUser});
 });
+
+router.post("/listError", async (req, res) => {
+    const today = momentTimeZone().tz("Asia/Jakarta");
+    
+    try {
+        // Ambil data dari koleksi errormessages dan klasifikasikan berdasarkan userId
+        const errors = await errorMessage.aggregate([
+            {
+                $group: {
+                    _id: "$userId",
+                    errors: {
+                        $push: "$$ROOT"  // Mengambil semua field di dalam dokumen
+                    }
+                }
+            },
+            {
+                $project: {
+                    errors: {
+                        $slice: [
+                            { $sortArray: { input: "$errors", sortBy: { dateIn: -1 } } }, 
+                            10 // Misalnya ambil 10 error terbaru, sesuaikan dengan kebutuhan Anda
+                        ]
+                    }
+                }
+            },
+            { $sort: { "errors.0.dateIn": -1 } } // Sort berdasarkan dateIn dari error terbaru (errors yang pertama)
+        ]);
+
+        // Ambil detail user berdasarkan userId
+        const results = await Promise.all(errors.map(async error => {
+            const user = await users.findOne({ userId: error._id });
+            return {
+                user,
+                errors: error.errors
+            };
+        }));
+
+        res.json(results);
+    } catch (err) {
+        res.status(500).send(err.message);
+    }
+});
+
 
 module.exports = router;

@@ -41,5 +41,4 @@ app.post("/userManagement/", async (req, res) => {
     }
 });
 
-
 app.use("/FE", FERoutes);
