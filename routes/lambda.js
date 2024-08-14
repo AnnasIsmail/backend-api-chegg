@@ -17,10 +17,31 @@ const dbFormatDate = "DD MMMM YYYY";
 const dbFormatDateTime = "YYYY-MM-DDTHH:mm:ss";
 const userFormat = "dddd DD MMMM YYYY HH:mm:ss";
 
+// Fungsi untuk melakukan request ke endpoint /test
+async function testVPSEndpoint(ip) {
+  try {
+    const response = await axios.post(ip + "/test", {}, { timeout: 30000 });
+    return response;
+  } catch (error) {
+    console.error("Error on axios.post /test:", error);
+    return { statusCode: 404 }; // Perbaikan di sini
+  }
+}
+
+// Fungsi untuk melakukan request ke endpoint utama
+async function mainVPSEndpoint(ip, data) {
+  try {
+    const response = await axios.post(ip, data);
+    return response;
+  } catch (error) {
+    console.error("Error on axios.post main endpoint:", error);
+    return { statusCode: 404 }; // Perbaikan di sini
+  }
+}
+
 router.post("/check", async (req, res) => {
   const today = momentTimeZone().tz("Asia/Jakarta");
 
-  // body: updateId, userId, url, chatId, firstName, lastName
   const body = req.body;
 
   if (
@@ -36,7 +57,7 @@ router.post("/check", async (req, res) => {
     });
   }
 
-  //Check Update ID has Already Exist
+  // Check Update ID has Already Exist
   const isExistUpdateId = await listUpdateId.findOne({
     updateId: body.updateId,
   });
@@ -64,7 +85,7 @@ router.post("/check", async (req, res) => {
     });
   }
 
-  //Check Subscription of User
+  // Check Subscription of User
   const query = users.where({ userId: body.userId });
   const user = await query.findOne();
   if (user?.userId !== undefined) {
@@ -119,28 +140,24 @@ router.post("/check", async (req, res) => {
       });
     }
   } catch (error) {
-    statusCode = 500;
-    responseData = {
+    const statusCode = 500;
+    const responseData = {
       message:
         "There are currently a lot of requests on our server, please kindly wait about two minutes thank you",
       error: error.message,
       ip: vpsList.ip,
     };
+    return res.status(statusCode).json(responseData);
   }
 
-  //Check VPS
+  // Check VPS
   const vpsList = await VPS.findOne({ isRunning: false, isActive: true });
   if (vpsList) {
-    let response = {};
     let statusCode = 200; // Default status code
     let responseData = {};
 
     try {
-      const testVPS = await axios
-        .post(vpsList.ip + "/test", {}, { timeout: 30000 })
-        .catch((error) => {
-          console.error("Error on axios.post:", error);
-        });
+      const testVPS = await testVPSEndpoint(vpsList.ip);
 
       if (testVPS?.data.statusCode !== 200) {
         const errorSend = await errorMessage.insertMany([
@@ -175,7 +192,6 @@ router.post("/check", async (req, res) => {
             "We are experiencing server maintenance. Please send the url again, thank you",
         });
       }
-
       await VPS.updateOne(
         { ip: vpsList.ip },
         {
@@ -188,16 +204,13 @@ router.post("/check", async (req, res) => {
         }
       );
 
-      axios
-        .post(vpsList.ip, {
-          url: body.url,
-          id: body.updateId,
-          chatId: body.chatId,
-          userId: body.userId,
-        })
-        .catch((error) => {
-          console.error("Error on axios.post:", error);
-        });
+      await mainVPSEndpoint(vpsList.ip, {
+        url: body.url,
+        id: body.updateId,
+        chatId: body.chatId,
+        userId: body.userId,
+      });
+
       responseData = {
         ip: vpsList.ip,
         message: "We are processing your request, kindly wait for the feedback",
@@ -256,30 +269,118 @@ router.post("/check", async (req, res) => {
         });
       }
 
-      const vpsMoreThanFiveMinutes = await activeVPS.find((vps) => {
-        return (
-          moment().diff(moment(vps.dateUp), "minutes") > 5 &&
-          vps.userId === "" &&
-          vps.chatId === ""
-        );
+      const vpsMoreThanFiveMinutes = await VPS.findOne({
+        $and: [
+          { userId: { $ne: null } },
+          { chatId: { $ne: null } },
+          {
+            $expr: {
+              $gt: [
+                {
+                  $dateFromString: { dateString: "$dateUp" }
+                },
+                momentTimeZone().subtract(5, 'minutes').toDate()
+              ]
+            }
+          }
+        ]
       });
 
       if (vpsMoreThanFiveMinutes) {
-        const errorSend = await errorMessage.insertMany([
-          {
-            updateId: body.updateId,
-            userId: body.userId,
-            url: body.url,
-            chatId: body.chatId,
-            message: "VPS Error IP: " + vpsList.ip + " " + error,
-            dateIn: today.format(dbFormatDateTime),
-          },
-        ]);
-
-        notifyAdmins(
-          "VPS Error IP: " + vpsList.ip + " Error ID: " + errorSend[0]._id
-        );
-      }
+        let statusCode = 200; // Default status code
+        let responseData = {};
+    
+        try {
+            // Mengirim request ke endpoint /test untuk mengecek apakah VPS yang sudah berjalan lebih dari 5 menit masih aktif
+            const testVPS = await testVPSEndpoint(vpsMoreThanFiveMinutes.ip);
+    
+            if (testVPS?.data.statusCode !== 200) {
+                // Jika VPS tidak bisa dihubungi, kirim notifikasi dan update status VPS
+                const errorSend = await errorMessage.insertMany([
+                    {
+                        updateId: body.updateId,
+                        userId: body.userId,
+                        url: body.url,
+                        chatId: body.chatId,
+                        message: "VPS tidak bisa dihubungi IP: " + vpsMoreThanFiveMinutes.ip,
+                        dateIn: today.format(dbFormatDateTime),
+                    },
+                ]);
+    
+                notifyAdmins(
+                    "VPS tidak bisa dihubungi IP: " +
+                    vpsMoreThanFiveMinutes.ip +
+                    " Error ID: " +
+                    errorSend[0]._id
+                );
+                await VPS.updateOne(
+                    { ip: vpsMoreThanFiveMinutes.ip },
+                    {
+                        isRunning: false,
+                        isActive: false,
+                        errorId: errorSend[0]._id,
+                        url: body.url,
+                        dateUp: today.format(dbFormatDateTime),
+                    }
+                );
+                return res.status(200).json({
+                    message:
+                        "We are experiencing server maintenance. Please send the url again, thank you",
+                });
+            }
+    
+            // Jika VPS masih bisa dihubungi, update status VPS dan proses permintaan pengguna
+            await VPS.updateOne(
+                { ip: vpsMoreThanFiveMinutes.ip },
+                {
+                    isRunning: true,
+                    userId: body.userId,
+                    updateId: body.updateId,
+                    chatId: body.chatId,
+                    url: body.url,
+                    dateUp: today.format(dbFormatDateTime),
+                }
+            );
+    
+            await mainVPSEndpoint(vpsMoreThanFiveMinutes.ip, {
+                url: body.url,
+                id: body.updateId,
+                chatId: body.chatId,
+                userId: body.userId,
+            });
+    
+            responseData = {
+                ip: vpsMoreThanFiveMinutes.ip,
+                message: "We are processing your request, kindly wait for the feedback",
+            };
+            res.status(statusCode).json(responseData);
+        } catch (error) {
+            const errorSend = await errorMessage.insertMany([
+                {
+                    updateId: body.updateId,
+                    userId: body.userId,
+                    url: body.url,
+                    chatId: body.chatId,
+                    message: "VPS Error IP: " + vpsMoreThanFiveMinutes.ip + " " + error,
+                    dateIn: today.format(dbFormatDateTime),
+                },
+            ]);
+    
+            notifyAdmins(
+                "VPS Error IP: " + vpsMoreThanFiveMinutes.ip + " Error ID: " + errorSend[0]._id
+            );
+    
+            statusCode = 500;
+            responseData = {
+                message:
+                    "We are experiencing server maintenance. Please send the url again, thank you",
+                error: error.message,
+                ip: vpsMoreThanFiveMinutes.ip,
+            };
+            res.status(statusCode).json(responseData);
+        }
+        return true;
+    }
 
       const queueCounts = await queueVPS.aggregate([
         { $match: { ip: { $in: activeVPS.map((vps) => vps.ip) } } },
