@@ -12,23 +12,43 @@ const { notifyAdmins } = require("../funstion/sendMessageToAdmin ");
 const errorMessage = require("../model/errorMessage");
 const momentTimeZone = require("moment-timezone");
 const sendMessageToAdmin = require("../funstion/sendMessageToAdmin ");
+const mongoose = require("mongoose");
 
 const dbFormatDate = "DD MMMM YYYY";
 const dbFormatDateTime = "YYYY-MM-DDTHH:mm:ss";
 const userFormat = "dddd DD MMMM YYYY HH:mm:ss";
 
+async function ensureMongoConnection() {
+  if (mongoose.connection.readyState !== 1) {
+    console.log('Reconnecting to MongoDB...');
+    try {
+      await mongoose.connect('mongodb+srv://chegg-permission:chegg123@serverlessinstance0.jc8bmep.mongodb.net/test', {
+        useNewUrlParser: true,
+        useUnifiedTopology: true
+      });
+      console.log('MongoDB reconnected successfully');
+    } catch (err) {
+      console.error('Failed to reconnect to MongoDB:', err);
+    }
+  }
+}
+
 async function processVPSRequest(vpsList, body, today, res) {
-  let statusCode = 200;
-  let responseData = {};
 
   try {
     const testVPS = await axios
       .post(vpsList.ip + "/test", {}, { timeout: 30000 })
       .catch((error) => {
-        console.error("Error on axios.post:", error);
+        // console.error("Error on axios.post:", error);
+        return null; 
       });
-
+      
     if (testVPS?.data.statusCode !== 200) {
+      if (mongoose.connection.readyState !== 1) {
+        console.error('MongoDB connection is not ready, attempting to reconnect...');
+        const ready = await ensureMongoConnection();
+        console.log(ready);
+      }
       const errorSend = await errorMessage.insertMany([
         {
           updateId: body.updateId,
@@ -39,7 +59,7 @@ async function processVPSRequest(vpsList, body, today, res) {
           dateIn: today.format(dbFormatDateTime),
         },
       ]);
-
+      
       notifyAdmins(
         "VPS tidak bisa dihubungi IP: " +
           vpsList.ip +
@@ -57,11 +77,7 @@ async function processVPSRequest(vpsList, body, today, res) {
           dateUp: today.format(dbFormatDateTime),
         }
       );
-
-      return res.status(200).json({
-        message:
-          "We are experiencing server maintenance. Please send the url again, thank you",
-      });
+      return false;
     }
 
     await VPS.updateOne(
@@ -86,36 +102,19 @@ async function processVPSRequest(vpsList, body, today, res) {
       .catch((error) => {
         console.error("Error on axios.post:", error);
       });
-
-    responseData = {
-      ip: vpsList.ip,
-      message: "We are processing your request, kindly wait for the feedback",
-    };
-    return res.status(statusCode).json(responseData);
+    return true
   } catch (error) {
-    const errorSend = await errorMessage.insertMany([
-      {
-        updateId: body.updateId,
-        userId: body.userId,
-        url: body.url,
-        chatId: body.chatId,
-        message: "VPS Error IP: " + vpsList.ip + " " + error,
-        dateIn: today.format(dbFormatDateTime),
-      },
-    ]);
-
-    notifyAdmins(
-      "VPS Error IP: " + vpsList.ip + " Error ID: " + errorSend[0]._id
-    );
-
-    statusCode = 500;
-    responseData = {
-      message:
-        "We are experiencing server maintenance. Please send the url again, thank you",
-      error: error.message,
-      ip: vpsList.ip,
-    };
-    return res.status(statusCode).json(responseData);
+    // const errorSend = await errorMessage.insertMany([
+    //   {
+    //     updateId: body.updateId,
+    //     userId: body.userId,
+    //     url: body.url,
+    //     chatId: body.chatId,
+    //     message: "VPS Error IP: " + vpsList.ip + " " + error,
+    //     dateIn: today.format(dbFormatDateTime),
+    //   },
+    // ]);
+    return false;
   }
 }
 
@@ -231,13 +230,93 @@ router.post("/check", async (req, res) => {
   }
 
   //Check VPS
-  const vpsList = await VPS.findOne({ isRunning: false, isActive: true });
-  if (vpsList) {
-    processVPSRequest(vpsList)
-  } else {
+  const availableVPS = await VPS.find({ isRunning: false, isActive: true });
+  if (availableVPS.length > 0) {
+    for (const vps of availableVPS) {
+    
+      if (mongoose.connection.readyState !== 1) {
+        console.error('MongoDB connection is not ready, attempting to reconnect...');
+        const ready = await ensureMongoConnection();
+        console.log(ready);
+      }
+    
+      let statusCode = 200;
+      let responseData = {};
+    
+      try {
+        const requestVPS = await processVPSRequest(vps, body, today, res);
+        
+        if (mongoose.connection.readyState !== 1) {
+          console.error('MongoDB connection is not ready, attempting to reconnect...');
+          const ready = await ensureMongoConnection();
+          console.log(ready);
+        }
+    
+        if (requestVPS) {
+          responseData = {
+            ip: vps.ip,
+            message: "We are processing your request, kindly wait for the feedback",
+          };
+          return res.status(statusCode).json(responseData);
+        }
+      } catch (error) {
+        console.error('Error processing VPS request:', error);
+      }
+    }
+    
+  }
     try {
+
+      const vpsMoreThanFiveMinutes = await VPS.findOne({
+        $and: [
+          { userId: { $ne: "" } },
+          { chatId: { $ne: "" } },
+          { isActive: true },
+          { isRunning: true },
+          {
+            $expr: {
+              $gt: [
+                {
+                  $dateFromString: { dateString: "$dateUp" }
+                },
+                momentTimeZone().subtract(5, 'minutes').toDate()
+              ]
+            }
+          }
+        ]
+      });
+
+      if (vpsMoreThanFiveMinutes) {
+        const errorSend = await errorMessage.insertMany([
+          {
+            updateId: body.updateId,
+            userId: body.userId,
+            url: body.url,
+            chatId: body.chatId,
+            message: "VPS Error IP: " + vpsMoreThanFiveMinutes.ip + " vpsMoreThanFiveMinutes",
+            dateIn: today.format(dbFormatDateTime),
+          },
+        ]);
+
+        notifyAdmins(
+          "VPS Error IP: " + vpsMoreThanFiveMinutes.ip + " Error ID: " + errorSend[0]._id + " vpsMoreThanFiveMinutes"
+        );
+
+        const vps = vpsMoreThanFiveMinutes;
+        let statusCode = 200;
+        let responseData = {};
+        const requestVPS = await processVPSRequest(vps, body, today, res);
+
+        if (requestVPS) {
+          responseData = {
+            ip: vps.ip,
+            message: "We are processing your request, kindly wait for the feedback",
+          };
+          return res.status(statusCode).json(responseData);
+        }
+      }
+
       const activeVPS = await VPS.find({ isActive: true });
-      console.log(activeVPS);
       if (activeVPS.length === 0) {
         const errorSend = await errorMessage.insertMany([
           {
@@ -261,58 +340,7 @@ router.post("/check", async (req, res) => {
         });
       }
 
-      const vpsMoreThanFiveMinutes = await activeVPS.find((vps) => {
-        return (
-          moment().diff(moment(vps.dateUp), "minutes") > 5 &&
-          vps.userId === "" &&
-          vps.chatId === ""
-        );
-      });
-
-      if (vpsMoreThanFiveMinutes) {
-        const errorSend = await errorMessage.insertMany([
-          {
-            updateId: body.updateId,
-            userId: body.userId,
-            url: body.url,
-            chatId: body.chatId,
-            message: "VPS Error IP: " + vpsList.ip + " " + error,
-            dateIn: today.format(dbFormatDateTime),
-          },
-        ]);
-
-        notifyAdmins(
-          "VPS Error IP: " + vpsList.ip + " Error ID: " + errorSend[0]._id
-        );
-      }
-
-      const queueCounts = await queueVPS.aggregate([
-        { $match: { ip: { $in: activeVPS.map((vps) => vps.ip) } } },
-        { $group: { _id: "$ip", count: { $sum: 1 } } },
-      ]);
-
-      const queueMap = {};
-      queueCounts.forEach((q) => {
-        queueMap[q._id] = q.count;
-      });
-
-      let targetVPS = activeVPS.find((vps) => !(vps.ip in queueMap));
-
-      if (!targetVPS) {
-        targetVPS = activeVPS[0];
-        let minQueueCount = queueMap[targetVPS.ip] || 0;
-
-        activeVPS.forEach((vps) => {
-          const count = queueMap[vps.ip] || 0;
-          if (count < minQueueCount) {
-            targetVPS = vps;
-            minQueueCount = count;
-          }
-        });
-      }
-
       const dataInsert = {
-        ip: targetVPS.ip,
         userId: req.body.userId,
         updateId: req.body.updateId,
         chatId: body.chatId,
@@ -322,15 +350,10 @@ router.post("/check", async (req, res) => {
 
       const newQueue = await queueVPS.insertMany(dataInsert);
       const newQueueLog = await queueVPSLog.insertMany(dataInsert);
-      const targetQueueCount = queueMap[targetVPS.ip] || 0;
 
       return res.status(200).json({
         message:
-          targetQueueCount > 4
-            ? "There are currently a lot of requests on our server, please kindly wait about " +
-              targetQueueCount +
-              " minutes thank you"
-            : "We are processing your request, kindly wait for the feedback",
+          "We are processing your request, kindly wait for the feedback",
       });
     } catch (error) {
       console.log(error);
@@ -341,7 +364,6 @@ router.post("/check", async (req, res) => {
             "We are experiencing server maintenance. Please send the url again, thank you",
         });
     }
-  }
 });
 
 router.post("/userRegister", async (req, res) => {

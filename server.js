@@ -8,6 +8,7 @@ require('dotenv').config();
 
 require("./connectDB");
 
+const mongoose = require("mongoose");
 const FERoutes = require("./routes/FE");
 const VPSRoutes = require("./routes/VPS");
 const lambdaRoutes = require("./routes/lambda");
@@ -61,6 +62,21 @@ app.post("/userManagement/", async (req, res) => {
     }
 });
 
+// mongoose.connection.on('disconnected', () => {
+//   console.log('MongoDB disconnected. Trying to reconnect...');
+//   mongoose.connect('mongodb://yourMongoDBURI', {
+//     useNewUrlParser: true,
+//     useUnifiedTopology: true
+//   });
+// });
+
+// mongoose.connection.on('connected', () => {
+//   console.log('MongoDB connected');
+// });
+
+// mongoose.connection.on('error', (err) => {
+//   console.error('MongoDB connection error:', err);
+// });
 
 app.use("/FE", FERoutes);
 app.use("/VPS", VPSRoutes);
