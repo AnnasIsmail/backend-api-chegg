@@ -140,4 +140,44 @@ router.post("/listUser", async (req, res) => {
     return res.status(200).json({user, notRegisteredYetUser, activeUser, notActiveUser});
 });
 
+router.post("/getVPS", async (req, res) => {
+    const VPSList = await VPS.find({});
+    if(VPSList?.length === 0){
+        return res.status(403).json({
+            message: "List Not Found"
+        });
+    }
+    return res.status(200).json(VPSList);
+});
+
+router.post("/resetVPS", async (req, res) => {
+    const today = momentTimeZone().tz("Asia/Jakarta");
+    const body = req.body;
+    if (
+        body.ip == undefined
+      ) {
+        return res.status(403).json({
+          message: "Minus Body Request.",
+        });
+      }
+    const VPSList = await VPS.findOne({ip: body.ip});
+    if(!VPSList){
+        return res.status(403).json({
+            message: "VPS Not Found"
+        });
+    }
+    const VPSupdated = await VPS.updateOne(
+        { ip: body.ip },
+        {
+            isRunning: false,
+            isActive: true,
+            dateUp: today.format(dbFormatDateTime),
+            chatId: null,
+            updateId: null,
+            userId: null,
+            errorId: null
+        });
+    return res.status(200).json(VPSupdated);
+});
+
 module.exports = router;

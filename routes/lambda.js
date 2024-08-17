@@ -243,6 +243,8 @@ router.post("/check", async (req, res) => {
         ]
       });
 
+      console.log("vpsMoreThanFiveMinutes",vpsMoreThanFiveMinutes);
+
       if (vpsMoreThanFiveMinutes) {
         const errorSend = await errorMessage.insertMany([
           {

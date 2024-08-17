@@ -76,7 +76,7 @@ async function ensureMongoConnection() {
 
 mongoose.connection.on('disconnected', async () => {
   if (mongoose.connection.readyState !== 1) {
-    console.error('12MongoDB connection is not ready, attempting to reconnect...');
+    console.error('MongoDB connection is not ready, attempting to reconnect...');
     const ready = await ensureMongoConnection();
     console.log(ready);
   }

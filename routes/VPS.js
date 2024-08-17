@@ -36,7 +36,7 @@ router.post("/getQueue", async (req, res) => {
     });
   }
   try {
-    const vpsList = await queueVPS.find({ ip: body.ip });
+    const vpsList = await queueVPS.find();
     if (vpsList.length > 0) {
       const data = findEarliestDate(vpsList);
       await queueVPS.deleteOne({
