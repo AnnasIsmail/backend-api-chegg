@@ -18,37 +18,16 @@ const dbFormatDate = "DD MMMM YYYY";
 const dbFormatDateTime = "YYYY-MM-DDTHH:mm:ss";
 const userFormat = "dddd DD MMMM YYYY HH:mm:ss";
 
-async function ensureMongoConnection() {
-  if (mongoose.connection.readyState !== 1) {
-    console.log('Reconnecting to MongoDB...');
-    try {
-      await mongoose.connect('mongodb+srv://chegg-permission:chegg123@serverlessinstance0.jc8bmep.mongodb.net/test', {
-        useNewUrlParser: true,
-        useUnifiedTopology: true
-      });
-      console.log('MongoDB reconnected successfully');
-    } catch (err) {
-      console.error('Failed to reconnect to MongoDB:', err);
-    }
-  }
-}
-
 async function processVPSRequest(vpsList, body, today, res) {
 
   try {
     const testVPS = await axios
       .post(vpsList.ip + "/test", {}, { timeout: 30000 })
-      .catch((error) => {
-        // console.error("Error on axios.post:", error);
+      .catch(async (error) => {
         return null; 
       });
       
     if (testVPS?.data.statusCode !== 200) {
-      if (mongoose.connection.readyState !== 1) {
-        console.error('MongoDB connection is not ready, attempting to reconnect...');
-        const ready = await ensureMongoConnection();
-        console.log(ready);
-      }
       const errorSend = await errorMessage.insertMany([
         {
           updateId: body.updateId,
@@ -104,16 +83,6 @@ async function processVPSRequest(vpsList, body, today, res) {
       });
     return true
   } catch (error) {
-    // const errorSend = await errorMessage.insertMany([
-    //   {
-    //     updateId: body.updateId,
-    //     userId: body.userId,
-    //     url: body.url,
-    //     chatId: body.chatId,
-    //     message: "VPS Error IP: " + vpsList.ip + " " + error,
-    //     dateIn: today.format(dbFormatDateTime),
-    //   },
-    // ]);
     return false;
   }
 }
@@ -233,24 +202,13 @@ router.post("/check", async (req, res) => {
   const availableVPS = await VPS.find({ isRunning: false, isActive: true });
   if (availableVPS.length > 0) {
     for (const vps of availableVPS) {
-    
-      if (mongoose.connection.readyState !== 1) {
-        console.error('MongoDB connection is not ready, attempting to reconnect...');
-        const ready = await ensureMongoConnection();
-        console.log(ready);
-      }
+      console.log(availableVPS.length);
     
       let statusCode = 200;
       let responseData = {};
     
       try {
-        const requestVPS = await processVPSRequest(vps, body, today, res);
-        
-        if (mongoose.connection.readyState !== 1) {
-          console.error('MongoDB connection is not ready, attempting to reconnect...');
-          const ready = await ensureMongoConnection();
-          console.log(ready);
-        }
+        const requestVPS =  await processVPSRequest(vps, body, today, res);
     
         if (requestVPS) {
           responseData = {
@@ -263,7 +221,6 @@ router.post("/check", async (req, res) => {
         console.error('Error processing VPS request:', error);
       }
     }
-    
   }
     try {
 

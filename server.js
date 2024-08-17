@@ -62,21 +62,33 @@ app.post("/userManagement/", async (req, res) => {
     }
 });
 
-// mongoose.connection.on('disconnected', () => {
-//   console.log('MongoDB disconnected. Trying to reconnect...');
-//   mongoose.connect('mongodb://yourMongoDBURI', {
-//     useNewUrlParser: true,
-//     useUnifiedTopology: true
-//   });
-// });
+async function ensureMongoConnection() {
+  if (mongoose.connection.readyState !== 1) {
+    console.log('Reconnecting to MongoDB...');
+    try {
+      await mongoose.connect('mongodb+srv://chegg-permission:chegg123@serverlessinstance0.jc8bmep.mongodb.net/test');
+      console.log('MongoDB reconnected successfully');
+    } catch (err) {
+      console.error('Failed to reconnect to MongoDB:', err);
+    }
+  }
+}
 
-// mongoose.connection.on('connected', () => {
-//   console.log('MongoDB connected');
-// });
+mongoose.connection.on('disconnected', async () => {
+  if (mongoose.connection.readyState !== 1) {
+    console.error('12MongoDB connection is not ready, attempting to reconnect...');
+    const ready = await ensureMongoConnection();
+    console.log(ready);
+  }
+});
 
-// mongoose.connection.on('error', (err) => {
-//   console.error('MongoDB connection error:', err);
-// });
+mongoose.connection.on('connected', () => {
+  console.log('MongoDB connected');
+});
+
+mongoose.connection.on('error', (err) => {
+  console.error('MongoDB connection error:', err);
+});
 
 app.use("/FE", FERoutes);
 app.use("/VPS", VPSRoutes);
